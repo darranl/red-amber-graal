@@ -12,9 +12,9 @@ echo "==> Creating directories on BlackRaspberry..."
 ssh blackraspberry "mkdir -p ~/.local/lib/red-amber-graal ~/.local/bin"
 
 echo "==> Deploying JAR..."
-scp "$JAR" blackraspberry:~/.local/lib/red-amber-graal/red-amber-graal.jar
+scp "$JAR" blackraspberry:~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar
 
 echo "==> Deploying run wrapper..."
-scp -p "$SCRIPT_DIR/pi-scripts/red-amber-graal" blackraspberry:~/.local/bin/red-amber-graal
+scp -p "$SCRIPT_DIR/pi-scripts/red-amber-graal-libgpio" blackraspberry:~/.local/bin/red-amber-graal-libgpio
 
 echo "==> Done."

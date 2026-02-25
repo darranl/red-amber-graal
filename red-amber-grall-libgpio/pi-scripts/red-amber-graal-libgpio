@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+exec ~/.sdkman/candidates/java/current/bin/java \
+    -jar ~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar "$@"
