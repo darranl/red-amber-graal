@@ -1,3 +1,15 @@
 #!/usr/bin/env bash
+JAVA_OPTS=()
+PASSTHROUGH=()
+
+for arg in "$@"; do
+    if [[ "$arg" == "--debug" ]]; then
+        JAVA_OPTS+=(-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005)
+    else
+        PASSTHROUGH+=("$arg")
+    fi
+done
+
 exec ~/.sdkman/candidates/java/current/bin/java \
-    -jar ~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar "$@"
+    "${JAVA_OPTS[@]}" \
+    -jar ~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar "${PASSTHROUGH[@]}"
