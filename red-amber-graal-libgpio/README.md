@@ -12,6 +12,18 @@ The project produces two deployable artefacts that coexist on the Pi:
 | JVM JAR + wrapper | `deploy-pi.sh` | `~/.local/bin/red-amber-graal-libgpio` |
 | Native binary | `deploy-pi-native.sh` | `~/.local/bin/red-amber-graal-libgpio-native` |
 
+## Why cross-compile?
+
+GraalVM `native-image` is memory- and CPU-intensive. Building locally on a
+16-core x86_64 machine is dramatically faster than building on the Pi itself,
+and is the only practical option for the Pi Zero 2 W (512 MB RAM).
+
+| Machine | Cores / RAM | `native-image` wall time |
+|---|---|---|
+| x86_64 dev machine | 16 cores / ample RAM | ~50 s |
+| Raspberry Pi 4B | 4 cores / 4 GB RAM | ~5 min 22 s |
+| Raspberry Pi Zero 2 W | 4 cores / 512 MB RAM | not viable |
+
 ---
 
 ## Prerequisites
