@@ -7,10 +7,33 @@ toolchain, and an SSHFS mount of the Pi's root filesystem as the sysroot.
 
 The project produces two deployable artefacts that coexist on the Pi:
 
-| Artefact | Script | Pi path |
+| Artefact | Make target | Pi path |
 |---|---|---|
-| JVM JAR + wrapper | `deploy-pi.sh` | `~/.local/bin/red-amber-graal-libgpio` |
-| Native binary | `deploy-pi-native.sh` | `~/.local/bin/red-amber-graal-libgpio-native` |
+| JVM JAR + wrapper | `make deploy` | `~/.local/bin/red-amber-graal-libgpio` |
+| Native binary | `make deploy-native` | `~/.local/bin/red-amber-graal-libgpio-native` |
+
+## Makefile quick-reference
+
+Run `make help` to list all available targets:
+
+```
+Usage: make <target>
+
+Setup (one-time):
+  setup-libs           Symlink aarch64 static libs from Pi into local GraalVM CE
+  gen-cap-cache        Generate CAP cache on Pi and fetch result back
+
+Deploy:
+  deploy               Build JVM JAR and deploy to Pi
+  deploy-native        Build aarch64 native binary and deploy to Pi
+
+Run:
+  run                  Run JVM version on Pi via SSH
+  run-native           Run native binary on Pi via SSH
+  debug                Run JVM version on Pi with JDWP debugging (port 5005)
+  run-local            Run JVM JAR locally
+  run-local-native     Run native binary locally
+```
 
 ## Why cross-compile?
 
@@ -49,7 +72,7 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
 
 4. **aarch64 static library symlinks** — one-time setup, run once per machine:
    ```bash
-   ./setup-aarch64-libs.sh
+   make setup-libs
    ```
    This creates two symlinks inside the local GraalVM CE installation that point
    at the aarch64 static libraries from the Pi's GraalVM CE installation (via the
@@ -59,7 +82,7 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
 5. **CAP cache** — must exist at `cap-cache/` before the native build. Generate
    it once (see [CAP cache](#cap-cache) below):
    ```bash
-   ./generate-cap-cache.sh
+   make gen-cap-cache
    ```
 
 ### BlackRaspberry (aarch64)
@@ -98,8 +121,8 @@ binary ready to copy to the Pi.
 ## Deployment
 
 ```bash
-./deploy-pi.sh          # build JAR + scp JAR and wrapper script to Pi
-./deploy-pi-native.sh   # build native binary + scp to Pi
+make deploy          # build JAR + scp JAR and wrapper script to Pi
+make deploy-native   # build native binary + scp to Pi
 ```
 
 Both scripts check their prerequisites and print clear errors if anything is
@@ -108,8 +131,9 @@ missing (sysroot not mounted, native-image not found, etc.).
 ## Running on the Pi
 
 ```bash
-./run-on-pi.sh          # runs the JVM version via SSH
-./run-on-pi-native.sh   # runs the native binary via SSH
+make run          # runs the JVM version via SSH
+make run-native   # runs the native binary via SSH
+make debug        # runs the JVM version with JDWP debugging (port 5005)
 ```
 
 ---
@@ -151,7 +175,7 @@ You do NOT need to regenerate when:
 ### Regenerating
 
 ```bash
-./generate-cap-cache.sh
+make gen-cap-cache
 ```
 
 The script builds the JAR, deploys it to BlackRaspberry, runs native-image
@@ -175,7 +199,7 @@ the initial cross-compilation setup:
 | `-H:CAPCacheDir=...` | Required by native-image when cross-compiling; see [CAP cache](#cap-cache) |
 | `-H:CLibraryPath=.../usr/lib/aarch64-linux-gnu` | The cross-compiler's sysroot support does not automatically add the Debian multiarch library path, so `-lz` and other system libraries are not found without this |
 
-The two symlinks created by `setup-aarch64-libs.sh` slot the Pi's aarch64
+The two symlinks created by `make setup-libs` slot the Pi's aarch64
 static libraries into the expected locations inside the local GraalVM CE
 installation:
 

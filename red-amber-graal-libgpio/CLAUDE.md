@@ -12,23 +12,30 @@ traffic light controller." FFM / libgpiod bindings are the next step (Task 3.x).
 
 | Command | Output | Runs on |
 |---|---|---|
-| `mvn package` | JVM JAR in `target/` | Pi via `run-on-pi.sh` |
-| `mvn package -Dnative` | aarch64 native binary in `target/` | Pi via `run-on-pi-native.sh` |
+| `mvn package` | JVM JAR in `target/` | Pi via `make run` |
+| `mvn package -Dnative` | aarch64 native binary in `target/` | Pi via `make run-native` |
 
 The native build cross-compiles from x86_64 to aarch64. All execution is on
-the Pi; local run scripts (`run-app.sh`, `run-app-native.sh`) are not updated.
+the Pi; local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`) are not updated.
 
 ## Key files
 
 | File | Purpose |
 |---|---|
 | `pom.xml` | Native profile contains all cross-compilation flags |
-| `setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
-| `generate-cap-cache.sh` | Generates `cap-cache/` on the Pi, fetches back — see README |
-| `cap-cache/` | Committed CAP cache — do not delete, regenerate via script |
-| `deploy-pi.sh` | Build JAR → scp to Pi |
-| `deploy-pi-native.sh` | Build native binary → scp to Pi (requires sysroot mounted + GraalVM CE active) |
-| `run-on-pi.sh` / `run-on-pi-native.sh` | SSH and run the respective binary |
+| `Makefile` | Convenience targets for all operations; run `make help` |
+| `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
+| `scripts/setup/generate-cap-cache.sh` | Generates `cap-cache/` on the Pi, fetches back — see README |
+| `cap-cache/` | Committed CAP cache — do not delete, regenerate via `make gen-cap-cache` |
+| `scripts/deploy/deploy-pi.sh` | Build JAR → scp to Pi |
+| `scripts/deploy/deploy-pi-native.sh` | Build native binary → scp to Pi (requires sysroot mounted + GraalVM CE active) |
+| `scripts/run/run-on-pi.sh` / `scripts/run/run-on-pi-native.sh` | SSH and run the respective binary |
+| `scripts/pi/red-amber-graal-libgpio` | JVM wrapper deployed to Pi |
+
+## Script/Makefile inventory
+
+When adding, removing, or renaming a script, update `Makefile`, `README.md`,
+and `CLAUDE.md` in the same commit to keep them in sync.
 
 ## Cross-compilation flags in pom.xml (native profile)
 
@@ -52,12 +59,12 @@ notes. Key things to know when modifying the native profile:
   mechanism, so `-lz` and other system libs are not found without it.
 - `-H:CAPCacheDir` — native-image auto-enables `+UseCAPCache` when
   `--target` specifies a cross-compilation target. The cache must be pre-built
-  (see `generate-cap-cache.sh`). The cache lives in `cap-cache/` at the project
+  (see `make gen-cap-cache`). The cache lives in `cap-cache/` at the project
   root (not `target/`) so it survives `mvn clean` and is committed to git.
 
 ## CAP cache — when to regenerate
 
-Run `./generate-cap-cache.sh` and commit the result when:
+Run `make gen-cap-cache` and commit the result when:
 1. GraalVM CE version changes (version determines which C types are queried).
 2. Pi OS or glibc is updated (struct layouts may change).
 3. New `@CStruct` / `@CField` annotations are added to the project.
@@ -66,7 +73,7 @@ Not needed when only Java code changes.
 
 ## aarch64 static library symlinks
 
-`setup-aarch64-libs.sh` creates two symlinks inside the local GraalVM CE
+`make setup-libs` creates two symlinks inside the local GraalVM CE
 installation pointing at the Pi's GraalVM CE installation via the SSHFS sysroot
 mount. native-image's JDK static lib search path is hardcoded to
 `$JAVA_HOME/lib/static/{target}/{libc}/` and cannot be redirected via any
@@ -76,7 +83,7 @@ The symlinks depend on:
 - Sysroot being mounted (`~/mnt/pios12_root`)
 - GraalVM CE 25.0.2 installed on BlackRaspberry
 
-Re-run `setup-aarch64-libs.sh` after upgrading GraalVM on either machine.
+Re-run `make setup-libs` after upgrading GraalVM on either machine.
 
 ## Native image option names — GraalVM CE 25 reference
 
@@ -97,5 +104,5 @@ When jextract FFM bindings for libgpiod are added:
 2. Add `--enable-native-access=ALL-UNNAMED` to pom.xml native profile.
 3. Add `RuntimeForeignAccess.registerForDowncall()` calls in a `Feature`
    implementation (AOT requirement).
-4. Regenerate the CAP cache (`./generate-cap-cache.sh`) — new C types will be
+4. Regenerate the CAP cache (`make gen-cap-cache`) — new C types will be
    queried.

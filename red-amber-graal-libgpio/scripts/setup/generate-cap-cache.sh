@@ -17,12 +17,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GRAALVM_VERSION="25.0.2-graalce"
 NATIVE_IMAGE_PI="\$HOME/.sdkman/candidates/java/${GRAALVM_VERSION}/bin/native-image"
 REMOTE_JAR="\$HOME/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar"
 REMOTE_CACHE="/tmp/red-amber-graal-libgpio-cap-cache"
-LOCAL_CACHE="$SCRIPT_DIR/cap-cache"
+LOCAL_CACHE="$PROJECT_ROOT/cap-cache"
 
 # Check native-image is installed on the Pi
 if ! ssh blackraspberry "test -x ${NATIVE_IMAGE_PI}"; then
@@ -32,9 +32,9 @@ if ! ssh blackraspberry "test -x ${NATIVE_IMAGE_PI}"; then
 fi
 
 echo "==> Building JAR..."
-mvn -f "$SCRIPT_DIR/pom.xml" package -DskipTests
+mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests
 
-JAR=$(ls "$SCRIPT_DIR"/target/red-amber-graal-libgpio-*.jar | head -1)
+JAR=$(ls "$PROJECT_ROOT"/target/red-amber-graal-libgpio-*.jar | head -1)
 
 echo "==> Deploying JAR to BlackRaspberry..."
 ssh blackraspberry "mkdir -p ~/.local/lib/red-amber-graal"

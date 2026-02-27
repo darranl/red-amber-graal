@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Check that native-image is available (requires GraalVM selected in sdkman)
 if ! command -v native-image &>/dev/null; then
@@ -19,9 +19,9 @@ if [ ! -d "$SYSROOT/usr/include" ]; then
 fi
 
 echo "==> Building native aarch64 binary..."
-mvn -f "$SCRIPT_DIR/pom.xml" package -DskipTests -Dnative
+mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests -Dnative
 
-BINARY="$SCRIPT_DIR/target/red-amber-graal-libgpio-native"
+BINARY="$PROJECT_ROOT/target/red-amber-graal-libgpio-native"
 
 echo "==> Creating ~/.local/bin on BlackRaspberry..."
 ssh blackraspberry "mkdir -p ~/.local/bin"
