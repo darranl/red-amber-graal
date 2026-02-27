@@ -84,12 +84,7 @@
                 <buildArg>--target=linux-aarch64</buildArg>
                 <buildArg>--native-compiler-path=/usr/bin/aarch64-linux-gnu-gcc</buildArg>
                 <buildArg>--native-compiler-options=--sysroot=${user.home}/mnt/pios12_root</buildArg>
-                <!-- ForeignAPISupport is disabled until FFM bindings are added.
-                     ForeignFunctionsFeature (from svm-foreign.jar) is always active and crashes
-                     when cross-compiling to aarch64 on GraalVM CE 25: ABIs$X86_64 generates
-                     AMD64 trampolines unconditionally. Re-enable with enable-native-access=ALL-UNNAMED
-                     and remove this flag when jextract bindings are introduced. -->
-                <buildArg>-H:-ForeignAPISupport</buildArg>
+                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
                 <buildArg>-H:CAPCacheDir=${project.basedir}/cap-cache</buildArg>
                 <buildArg>-H:CLibraryPath=${user.home}/mnt/pios12_root/usr/lib/aarch64-linux-gnu</buildArg>
               </buildArgs>

@@ -6,6 +6,13 @@ package dev.lofthouse;
 public class App {
 
     public static void main(String[] args) {
-        System.out.println("Hello from the traffic light controller.");
+        Thread mainThread = Thread.currentThread();
+        Runtime.getRuntime().addShutdownHook(new Thread(mainThread::interrupt));
+
+        try (TrafficLightController controller = new TrafficLightController()) {
+            controller.run();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

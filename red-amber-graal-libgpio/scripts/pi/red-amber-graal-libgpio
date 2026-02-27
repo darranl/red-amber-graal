@@ -11,5 +11,6 @@ for arg in "$@"; do
 done
 
 exec ~/.sdkman/candidates/java/current/bin/java \
+    --enable-native-access=ALL-UNNAMED \
     "${JAVA_OPTS[@]}" \
     -jar ~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar "${PASSTHROUGH[@]}"

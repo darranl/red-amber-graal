@@ -5,8 +5,9 @@ and cross-compilation notes. This file records AI-assistant-relevant context.
 
 ## What this project is
 
-Java 25 traffic light controller skeleton. Currently prints "Hello from the
-traffic light controller." FFM / libgpiod bindings are the next step (Task 3.x).
+Java 25 traffic light controller using the FFM API + libgpiod. Runs the UK
+traffic light sequence (RED→RED_AMBER→GREEN→AMBER) on BCM pins 5/6/13 of
+BlackRaspberry. Supports both JVM and GraalVM native image deployment.
 
 ## Build modes
 
@@ -65,12 +66,17 @@ notes. Key things to know when modifying the native profile:
 
 ## CAP cache — when to regenerate
 
+The CAP cache captures C type layout information for GraalVM's annotation-based
+C interop (`@CStruct`, `@CField`, `@CFunction`). It is **not** used by
+jextract-generated FFM bindings, which resolve layouts via `MemoryLayout` /
+`FunctionDescriptor` through a separate mechanism.
+
 Run `make gen-cap-cache` and commit the result when:
 1. GraalVM CE version changes (version determines which C types are queried).
 2. Pi OS or glibc is updated (struct layouts may change).
 3. New `@CStruct` / `@CField` annotations are added to the project.
 
-Not needed when only Java code changes.
+Adding new jextract FFM bindings does **not** require regenerating the cache.
 
 ## aarch64 static library symlinks
 
@@ -98,15 +104,17 @@ These were discovered by trial and error and verified against `native-image --he
 
 The `-H:` variants still exist as experimental aliases but emit warnings.
 
-## Next steps
+## Status
 
-FFM bindings generation is now scripted. To integrate libgpiod FFM bindings:
+libgpiod FFM bindings are integrated and the UK traffic light sequence runs
+on the Pi in JVM mode (`make deploy && make run`). Native image build is
+the next step (`make deploy-native && make run-native`).
 
-0. Generate bindings: `make gen-ffm-bindings` — produces Java sources in
-   `src/main/java/dev/lofthouse/redambergraal/ffm/`. Commit the result.
-1. Remove `-H:-ForeignAPISupport` from pom.xml native profile.
-2. Add `--enable-native-access=ALL-UNNAMED` to pom.xml native profile.
-3. Add `RuntimeForeignAccess.registerForDowncall()` calls in a `Feature`
-   implementation (AOT requirement).
-4. Regenerate the CAP cache (`make gen-cap-cache`) — new C types will be
-   queried.
+Notes on completed integration work:
+- `-H:-ForeignAPISupport` has been removed; `--enable-native-access=ALL-UNNAMED`
+  is in both pom.xml (native profile) and the Pi JVM wrapper.
+- `RuntimeForeignAccess.registerForDowncall()` is **not** needed: jextract
+  generates `FunctionDescriptor` constants as `static final` fields, which
+  native-image's static analysis traces automatically.
+- CAP cache regeneration was **not** needed when adding FFM bindings (see
+  "CAP cache — when to regenerate" above).
