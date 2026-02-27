@@ -26,6 +26,7 @@ the Pi; local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-na
 | `Makefile` | Convenience targets for all operations; run `make help` |
 | `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
 | `scripts/setup/generate-cap-cache.sh` | Generates `cap-cache/` on the Pi, fetches back — see README |
+| `scripts/setup/generate-ffm-bindings.sh` | Generate FFM bindings from gpiod.h via jextract — see README |
 | `cap-cache/` | Committed CAP cache — do not delete, regenerate via `make gen-cap-cache` |
 | `scripts/deploy/deploy-pi.sh` | Build JAR → scp to Pi |
 | `scripts/deploy/deploy-pi-native.sh` | Build native binary → scp to Pi (requires sysroot mounted + GraalVM CE active) |
@@ -99,7 +100,10 @@ The `-H:` variants still exist as experimental aliases but emit warnings.
 
 ## Next steps
 
-When jextract FFM bindings for libgpiod are added:
+FFM bindings generation is now scripted. To integrate libgpiod FFM bindings:
+
+0. Generate bindings: `make gen-ffm-bindings` — produces Java sources in
+   `src/main/java/dev/lofthouse/redambergraal/ffm/`. Commit the result.
 1. Remove `-H:-ForeignAPISupport` from pom.xml native profile.
 2. Add `--enable-native-access=ALL-UNNAMED` to pom.xml native profile.
 3. Add `RuntimeForeignAccess.registerForDowncall()` calls in a `Feature`

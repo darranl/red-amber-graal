@@ -22,6 +22,7 @@ Usage: make <target>
 Setup (one-time):
   setup-libs           Symlink aarch64 static libs from Pi into local GraalVM CE
   gen-cap-cache        Generate CAP cache on Pi and fetch result back
+  gen-ffm-bindings     Generate FFM Java bindings for libgpiod via jextract
 
 Deploy:
   deploy               Build JVM JAR and deploy to Pi
@@ -84,6 +85,13 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
    ```bash
    make gen-cap-cache
    ```
+
+6. **jextract** — required to regenerate the FFM bindings. Install via sdkman:
+   ```bash
+   sdk install jextract
+   ```
+   The generated sources are already committed; only re-run if libgpiod changes
+   (see [FFM bindings](#ffm-bindings) below).
 
 ### BlackRaspberry (aarch64)
 
@@ -182,6 +190,44 @@ The script builds the JAR, deploys it to BlackRaspberry, runs native-image
 there with `+NewCAPCache +ExitAfterCAPCache` (which generates the cache and
 exits without building a full image), then scps the `.cap` files back to
 `cap-cache/`. Commit the updated `cap-cache/` directory.
+
+---
+
+## FFM bindings
+
+The FFM (Foreign Function & Memory) Java bindings for libgpiod are generated
+from `gpiod.h` on the Pi's sysroot using
+[jextract](https://jdk.java.net/jextract/). The generated `.java` sources live
+in `src/main/java/dev/lofthouse/redambergraal/ffm/` and are committed to
+version control so a normal `mvn package` does not require jextract.
+
+### Prerequisites
+
+- **jextract** installed via sdkman: `sdk install jextract`
+- **Sysroot mounted** at `~/mnt/pios12_root`
+
+### Generating
+
+```bash
+make gen-ffm-bindings
+```
+
+This runs `scripts/setup/generate-ffm-bindings.sh`, which:
+
+1. Deletes any previously generated sources under the package directory.
+2. Runs `jextract --source` against `gpiod.h` from the sysroot.
+3. Places the generated `.java` files in
+   `src/main/java/dev/lofthouse/redambergraal/ffm/`.
+
+Commit the generated sources after running.
+
+### When to regenerate
+
+- **libgpiod version changes** on the Pi — ABI changes may add or remove
+  symbols.
+- **Additional gpiod symbols are needed** — e.g. chip iteration, line events.
+
+You do NOT need to regenerate when only Java application code changes.
 
 ---
 

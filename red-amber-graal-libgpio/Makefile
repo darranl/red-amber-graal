@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup-libs gen-cap-cache deploy deploy-native \
+.PHONY: help setup-libs gen-cap-cache gen-ffm-bindings deploy deploy-native \
         run run-native debug run-local run-local-native
 
 help:
@@ -8,6 +8,7 @@ help:
 	@printf "\nSetup (one-time):\n"
 	@printf "  %-20s %s\n" "setup-libs"       "Symlink aarch64 static libs from Pi into local GraalVM CE"
 	@printf "  %-20s %s\n" "gen-cap-cache"    "Generate CAP cache on Pi and fetch result back"
+	@printf "  %-20s %s\n" "gen-ffm-bindings" "Generate FFM Java bindings for libgpiod via jextract"
 	@printf "\nDeploy:\n"
 	@printf "  %-20s %s\n" "deploy"           "Build JVM JAR and deploy to Pi"
 	@printf "  %-20s %s\n" "deploy-native"    "Build aarch64 native binary and deploy to Pi"
@@ -24,6 +25,9 @@ setup-libs:
 
 gen-cap-cache:
 	./scripts/setup/generate-cap-cache.sh
+
+gen-ffm-bindings:
+	./scripts/setup/generate-ffm-bindings.sh
 
 deploy:
 	./scripts/deploy/deploy-pi.sh
