@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 #
-# generate-cap-cache.sh
+# deploy-pi-native-on-pi.sh
 #
-# Generates the C Annotation Processor (CAP) cache required for aarch64
-# cross-compilation. The cache records target struct layouts (field offsets,
-# type sizes) by compiling and running C code natively on BlackRaspberry.
+# Builds a GraalVM native image directly on BlackRaspberry (aarch64 → aarch64,
+# no cross-compiler or sysroot needed) and installs the binary in place.
 #
-# The resulting cap-cache/ directory is persistent (not under target/) and
-# should be committed to version control. Re-run this script if the GraalVM
-# version changes.
+# This is the preferred native-image path when cross-compilation is not
+# available (see notes/graalvm-ffm-cross-compile-bug.md). BlackRaspberry (4B,
+# 4 GB RAM) can complete the build in ~5 minutes. This path is not viable on
+# the Pi Zero 2 W (512 MB RAM).
 #
 # Prerequisites:
 #   - JAVA_HOME set to a GraalVM CE installation locally
-#   - The same GraalVM installation present on BlackRaspberry at the same path
-#   - JAR deployed to BlackRaspberry (run deploy-pi.sh first, or this script
-#     will deploy it automatically)
+#   - The same GraalVM CE installation present on BlackRaspberry at the same path
+#   - SSH access to 'blackraspberry'
 
 set -euo pipefail
 
@@ -35,8 +34,7 @@ fi
 # Pi GraalVM mirrors local JAVA_HOME — same absolute path on both machines
 NATIVE_IMAGE_PI="${JAVA_HOME}/bin/native-image"
 REMOTE_JAR="\$HOME/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar"
-REMOTE_CACHE="/tmp/red-amber-graal-libgpio-cap-cache"
-LOCAL_CACHE="$PROJECT_ROOT/cap-cache"
+REMOTE_BUILD_DIR="/tmp/red-amber-graal-native-build"
 
 # Check native-image exists on the Pi at the mirrored path
 if ! ssh blackraspberry "test -x ${NATIVE_IMAGE_PI}"; then
@@ -54,21 +52,19 @@ echo "==> Deploying JAR to BlackRaspberry..."
 ssh blackraspberry "mkdir -p ~/.local/lib/red-amber-graal"
 scp "$JAR" blackraspberry:~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar
 
-echo "==> Generating CAP cache on BlackRaspberry..."
+echo "==> Building native image on BlackRaspberry..."
 ssh blackraspberry "
-    rm -rf ${REMOTE_CACHE} && mkdir -p ${REMOTE_CACHE}
+    rm -rf ${REMOTE_BUILD_DIR} && mkdir -p ${REMOTE_BUILD_DIR}
+    cd ${REMOTE_BUILD_DIR}
     ${NATIVE_IMAGE_PI} \
-        -H:+NewCAPCache \
-        -H:+ExitAfterCAPCache \
-        -H:CAPCacheDir=${REMOTE_CACHE} \
+        --no-fallback \
+        --enable-native-access=ALL-UNNAMED \
         -cp ${REMOTE_JAR} \
+        -H:Name=red-amber-graal-libgpio-native \
         dev.lofthouse.App
+    mkdir -p ~/.local/bin
+    mv red-amber-graal-libgpio-native ~/.local/bin/red-amber-graal-libgpio-native
+    rm -rf ${REMOTE_BUILD_DIR}
 "
 
-echo "==> Fetching CAP cache..."
-mkdir -p "$LOCAL_CACHE"
-scp "blackraspberry:${REMOTE_CACHE}/*" "$LOCAL_CACHE/"
-
-echo "==> Done. Cache written to $LOCAL_CACHE"
-echo "    Commit cap-cache/ to version control."
-echo "    Re-run this script if the GraalVM version changes."
+echo "==> Done."

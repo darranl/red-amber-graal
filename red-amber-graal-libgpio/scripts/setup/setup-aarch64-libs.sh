@@ -8,16 +8,30 @@
 # running deploy-pi-native.sh.
 #
 # Prerequisites:
-#   - GraalVM CE 25.0.2 installed locally via sdkman (25.0.2-graalce)
-#   - GraalVM CE 25.0.2 installed on BlackRaspberry via sdkman (25.0.2-graalce)
+#   - GraalVM CE installed locally; JAVA_HOME must point to it
+#   - The same GraalVM installation present on BlackRaspberry at the same path
 #   - Sysroot mounted: systemctl --user start home-darranl-mnt-pios12_root.mount
 
 set -euo pipefail
 
-GRAALVM_VERSION="25.0.2-graalce"
-LOCAL_GRAAL="$HOME/.sdkman/candidates/java/${GRAALVM_VERSION}"
 SYSROOT="$HOME/mnt/pios12_root"
-PI_GRAAL="${SYSROOT}/home/darranl/.sdkman/candidates/java/${GRAALVM_VERSION}"
+
+# Check JAVA_HOME is set
+if [ -z "${JAVA_HOME:-}" ]; then
+    echo "ERROR: JAVA_HOME is not set"
+    echo "  Set JAVA_HOME to a GraalVM CE installation (e.g. via: sdk use java 25.0.2-graalce)"
+    exit 1
+fi
+
+LOCAL_GRAAL="${JAVA_HOME}"
+
+# Check JAVA_HOME points to GraalVM (native-image is the distinguishing binary)
+if [ ! -x "${LOCAL_GRAAL}/bin/native-image" ]; then
+    echo "ERROR: JAVA_HOME does not appear to be a GraalVM CE installation: ${LOCAL_GRAAL}"
+    echo "  native-image not found at ${LOCAL_GRAAL}/bin/native-image"
+    echo "  Set JAVA_HOME to a GraalVM CE installation (e.g. via: sdk use java 25.0.2-graalce)"
+    exit 1
+fi
 
 # Check sysroot is mounted
 if [ ! -d "${SYSROOT}/usr/include" ]; then
@@ -26,17 +40,14 @@ if [ ! -d "${SYSROOT}/usr/include" ]; then
     exit 1
 fi
 
-# Check Pi GraalVM installation is accessible
-if [ ! -d "${PI_GRAAL}" ]; then
-    echo "ERROR: Pi GraalVM CE ${GRAALVM_VERSION} not found at ${PI_GRAAL}"
-    echo "  Install on BlackRaspberry: sdk install java ${GRAALVM_VERSION}"
-    exit 1
-fi
+# Pi GraalVM mirrors local JAVA_HOME — same path, rooted at the sysroot
+PI_GRAAL="${SYSROOT}${LOCAL_GRAAL}"
+echo "==> Local GraalVM: ${LOCAL_GRAAL}"
+echo "==> Pi GraalVM:    ${PI_GRAAL}"
 
-# Check local GraalVM installation exists
-if [ ! -d "${LOCAL_GRAAL}" ]; then
-    echo "ERROR: Local GraalVM CE ${GRAALVM_VERSION} not found at ${LOCAL_GRAAL}"
-    echo "  Install locally: sdk install java ${GRAALVM_VERSION}"
+if [ ! -d "${PI_GRAAL}" ]; then
+    echo "ERROR: Pi GraalVM not found at ${PI_GRAAL}"
+    echo "  Ensure sysroot is mounted and the same GraalVM is installed on BlackRaspberry"
     exit 1
 fi
 
@@ -46,8 +57,11 @@ echo "==> Setting up aarch64 static library symlinks for cross-compilation..."
 STATIC_LINK="${LOCAL_GRAAL}/lib/static/linux-aarch64"
 STATIC_TARGET="${PI_GRAAL}/lib/static/linux-aarch64"
 
-if [ -L "${STATIC_LINK}" ]; then
-    echo "    Already exists (symlink): ${STATIC_LINK}"
+if [ -L "${STATIC_LINK}" ] && [ "$(readlink "${STATIC_LINK}")" = "${STATIC_TARGET}" ]; then
+    echo "    Already correct (symlink): ${STATIC_LINK}"
+elif [ -L "${STATIC_LINK}" ]; then
+    ln -sfn "${STATIC_TARGET}" "${STATIC_LINK}"
+    echo "    Updated: ${STATIC_LINK} -> ${STATIC_TARGET}"
 elif [ -e "${STATIC_LINK}" ]; then
     echo "ERROR: ${STATIC_LINK} already exists and is not a symlink — remove it manually first"
     exit 1
@@ -60,8 +74,11 @@ fi
 CLIB_LINK="${LOCAL_GRAAL}/lib/svm/clibraries/linux-aarch64"
 CLIB_TARGET="${PI_GRAAL}/lib/svm/clibraries/linux-aarch64"
 
-if [ -L "${CLIB_LINK}" ]; then
-    echo "    Already exists (symlink): ${CLIB_LINK}"
+if [ -L "${CLIB_LINK}" ] && [ "$(readlink "${CLIB_LINK}")" = "${CLIB_TARGET}" ]; then
+    echo "    Already correct (symlink): ${CLIB_LINK}"
+elif [ -L "${CLIB_LINK}" ]; then
+    ln -sfn "${CLIB_TARGET}" "${CLIB_LINK}"
+    echo "    Updated: ${CLIB_LINK} -> ${CLIB_TARGET}"
 elif [ -e "${CLIB_LINK}" ]; then
     echo "ERROR: ${CLIB_LINK} already exists and is not a symlink — remove it manually first"
     exit 1

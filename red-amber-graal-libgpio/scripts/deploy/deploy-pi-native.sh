@@ -3,10 +3,15 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Check that native-image is available (requires GraalVM selected in sdkman)
-if ! command -v native-image &>/dev/null; then
-    echo "ERROR: native-image not found. Select GraalVM in sdkman:"
-    echo "  sdk use java 25.0.2-graalce"
+# Check JAVA_HOME is set and points to GraalVM
+if [ -z "${JAVA_HOME:-}" ]; then
+    echo "ERROR: JAVA_HOME is not set"
+    echo "  Set JAVA_HOME to a GraalVM CE installation (e.g. via: sdk use java 25.0.2-graalce)"
+    exit 1
+fi
+if [ ! -x "${JAVA_HOME}/bin/native-image" ]; then
+    echo "ERROR: JAVA_HOME does not appear to be a GraalVM CE installation: ${JAVA_HOME}"
+    echo "  native-image not found at ${JAVA_HOME}/bin/native-image"
     exit 1
 fi
 

@@ -27,6 +27,8 @@ Setup (one-time):
 Deploy:
   deploy               Build JVM JAR and deploy to Pi
   deploy-native        Build aarch64 native binary and deploy to Pi
+  deploy-native-pi     Build aarch64 native binary on BlackRaspberry and install in place
+  deploy-native-podman Build aarch64 native binary (Podman/QEMU arm64) and deploy to Pi
 
 Run:
   run                  Run JVM version on Pi via SSH
@@ -124,13 +126,27 @@ mvn package -DskipTests -Dnative
 Output: `target/red-amber-graal-libgpio-native` — a self-contained aarch64 ELF
 binary ready to copy to the Pi.
 
+### Native image (build on BlackRaspberry)
+
+When cross-compilation is not available, build the native image directly on BlackRaspberry.
+Requires GraalVM CE installed on both machines at the same path:
+
+    make deploy-native-pi
+
+This SSHes to BlackRaspberry, runs `native-image` there (no cross-compiler or sysroot needed),
+and installs the binary to `~/.local/bin/red-amber-graal-libgpio-native`. Note: BlackRaspberry
+4B has 4 GB RAM and can complete the build in ~5 minutes; this path is not viable on the Pi
+Zero 2 W (512 MB RAM).
+
 ---
 
 ## Deployment
 
 ```bash
-make deploy          # build JAR + scp JAR and wrapper script to Pi
-make deploy-native   # build native binary + scp to Pi
+make deploy                # build JAR + scp JAR and wrapper script to Pi
+make deploy-native         # build native binary (Maven cross-compile) + scp to Pi
+make deploy-native-pi      # build native binary on BlackRaspberry directly
+make deploy-native-podman  # build native binary (Podman/QEMU arm64) + scp to Pi
 ```
 
 Both scripts check their prerequisites and print clear errors if anything is
@@ -228,6 +244,73 @@ Commit the generated sources after running.
 - **Additional gpiod symbols are needed** — e.g. chip iteration, line events.
 
 You do NOT need to regenerate when only Java application code changes.
+
+---
+
+## FFM native-image registration
+
+### Why registration is needed
+
+jextract generates `static final FunctionDescriptor DESC` fields in each inner class (e.g.
+`gpiod_chip_open_by_name.DESC`) so that native-image's closed-world static analysis can
+discover them automatically and pre-compile the required downcall stubs. In this project,
+that mechanism fails because of a class-initialization chain:
+
+1. `gpiod_h.java` line 21: `static final Arena LIBRARY_ARENA = Arena.ofAuto()` —
+   `Arena.ofAuto()` is GC-managed; native-image cannot store it in the image heap, so
+   `gpiod_h` is deferred to runtime initialization.
+2. Every inner class (e.g. `gpiod_chip_open_by_name`) calls `gpiod_h.findOrThrow(...)`,
+   making it also runtime-initialized.
+3. `Linker.nativeLinker().downcallHandle(ADDR, DESC)` therefore runs at runtime, after
+   build-time analysis is complete — so no stubs are pre-compiled.
+4. At runtime, the first libgpiod call hits an unregistered descriptor shape and throws
+   `MissingForeignRegistrationError: Cannot perform downcall with leaf type (long,long)long`.
+
+See `notes/graalvm-ffm-static-discovery-bug.md` for the full root-cause chain.
+
+### Approaches considered
+
+| | JSON `reachability-metadata.json` | Java `Feature` + `RuntimeForeignAccess` |
+|---|---|---|
+| New Java source? | No | Yes (+ `native-image.properties` to register it) |
+| GraalVM SDK compile dependency? | No | Yes |
+| Auto-discovered from JAR? | Yes | Requires explicit `--features=` flag in build invocation |
+| Type-safe? | No (C type strings) | Yes (ValueLayout constants) |
+| Works for both Maven + on-Pi builds? | Yes, no script changes | Needs `--features=` added to `deploy-pi-native-on-pi.sh` |
+
+### Decision: JSON `reachability-metadata.json`
+
+The JSON approach was chosen because:
+- No new Java source files or additional dependencies.
+- Automatically picked up by native-image from `META-INF/native-image/` in the JAR classpath —
+  works for both `mvn package -Dnative` and the direct `native-image` invocation on BlackRaspberry
+  without any script changes.
+- The descriptor shapes for this project are simple (`void*` and `int` only) — no risk of
+  platform-specific ambiguity in the type strings.
+- The error message itself (`MissingForeignRegistrationError`) points directly at this mechanism.
+
+File location (packaged into the JAR by Maven automatically):
+
+```
+src/main/resources/META-INF/native-image/dev.lofthouse/red-amber-graal-libgpio/reachability-metadata.json
+```
+
+The JSON registers **shapes** (unique return+parameter type combinations), not individual
+functions. The 6 libgpiod calls in `TrafficLightController.java` map to 5 unique shapes:
+
+| Function | Descriptor | Registered shape |
+|---|---|---|
+| `gpiod_chip_open_by_name` | `void*(void*)` | `void*` ← `[void*]` |
+| `gpiod_chip_get_line` | `void*(void*, int)` | `void*` ← `[void*, int]` |
+| `gpiod_line_request_output` | `int(void*, void*, int)` | `int` ← `[void*, void*, int]` |
+| `gpiod_line_set_value` | `int(void*, int)` | `int` ← `[void*, int]` |
+| `gpiod_line_release` | `void(void*)` | `void` ← `[void*]` |
+| `gpiod_chip_close` | `void(void*)` | `void` ← `[void*]` (same shape as above) |
+
+### Doc reference
+
+GraalVM JDK 25 — FFM API in Native Image, "Downcalls" section:
+https://www.graalvm.org/jdk25/reference-manual/native-image/native-code-interoperability/ffm-api/#downcalls
 
 ---
 
