@@ -82,10 +82,10 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
    sysroot mount). Requires the sysroot to be mounted and GraalVM CE 25.0.2 to be
    installed on BlackRaspberry.
 
-5. **CAP cache** — must exist at `cap-cache/` before the native build. Generate
-   it once (see [CAP cache](#cap-cache) below):
+5. **CAP cache** — must exist at `cap-cache/` before the native build. The cache is committed
+   to version control; regenerate only if the GraalVM CE version changes (see [CAP cache](#cap-cache)):
    ```bash
-   make gen-cap-cache
+   make gen-cap-cache   # requires Podman + QEMU (make setup-podman)
    ```
 
 6. **jextract** — required to regenerate the FFM bindings. Install via sdkman:
@@ -97,8 +97,7 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
 
 ### BlackRaspberry (aarch64)
 
-- **GraalVM CE 25.0.2** installed via sdkman — needed to generate the CAP cache
-  and to run `deploy-pi.sh`'s JVM wrapper:
+- **GraalVM CE 25.0.2** installed via sdkman — needed to run `deploy-pi.sh`'s JVM wrapper:
   ```bash
   sdk install java 25.0.2-graalce
   ```
@@ -167,8 +166,8 @@ make debug        # runs the JVM version with JDWP debugging (port 5005)
 The C Annotation Processor (CAP) cache lives in `cap-cache/` and is committed
 to version control. It contains precomputed C type layout information — struct
 field offsets and type sizes — for the aarch64/Linux/glibc target. This
-information is recorded by running small C programs natively on the Pi and
-cannot be generated locally on x86_64 without QEMU.
+information is recorded by running small C programs natively on aarch64
+and cannot be generated locally on x86_64 without QEMU.
 
 ### What it is
 
@@ -202,10 +201,13 @@ You do NOT need to regenerate when:
 make gen-cap-cache
 ```
 
-The script builds the JAR, deploys it to BlackRaspberry, runs native-image
-there with `+NewCAPCache +ExitAfterCAPCache` (which generates the cache and
-exits without building a full image), then scps the `.cap` files back to
-`cap-cache/`. Commit the updated `cap-cache/` directory.
+The script builds the JAR, then runs native-image inside an arm64 Podman
+container (QEMU user-mode emulation) with `+NewCAPCache +ExitAfterCAPCache`,
+which generates the cache and exits without building a full image. The cache
+is written directly to `cap-cache/`. Commit the updated `cap-cache/` directory.
+
+Prerequisites: Podman installed and QEMU aarch64 binfmt registered
+(`make setup-podman`). No Pi connectivity required.
 
 ---
 

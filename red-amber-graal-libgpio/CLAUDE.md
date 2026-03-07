@@ -33,7 +33,7 @@ Local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`
 | `Containerfile` | arm64 Debian bookworm image with GraalVM CE 25.0.2 + gcc for Podman builds |
 | `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
 | `scripts/setup/setup-podman.sh` | One-time: install QEMU packages on Arch Linux, verify binfmt handler |
-| `scripts/setup/generate-cap-cache.sh` | Generates `cap-cache/` on the Pi, fetches back — see README |
+| `scripts/setup/generate-cap-cache.sh` | Generates `cap-cache/` via Podman arm64 container (no Pi required) — see README |
 | `scripts/setup/generate-ffm-bindings.sh` | Generate FFM bindings from gpiod.h via jextract — see README |
 | `cap-cache/` | Committed CAP cache — do not delete, regenerate via `make gen-cap-cache` |
 | `scripts/build/build-native-podman.sh` | Build native binary via arm64 Podman container (workaround for GraalVM cross-compile bug) |
@@ -74,20 +74,29 @@ notes. Key things to know when modifying the native profile:
   mechanism, so `-lz` and other system libs are not found without it.
 - `-H:CAPCacheDir` — native-image auto-enables `+UseCAPCache` when
   `--target` specifies a cross-compilation target. The cache must be pre-built
-  (see `make gen-cap-cache`). The cache lives in `cap-cache/` at the project
-  root (not `target/`) so it survives `mvn clean` and is committed to git.
+  via `make gen-cap-cache` (Podman-based, no Pi required). The cache lives in
+  `cap-cache/` at the project root (not `target/`) so it survives `mvn clean`
+  and is committed to git.
 
 ## CAP cache — when to regenerate
 
 The CAP cache captures C type layout information for GraalVM's annotation-based
 C interop (`@CStruct`, `@CField`, `@CFunction`). It is **not** used by
 jextract-generated FFM bindings, which resolve layouts via `MemoryLayout` /
-`FunctionDescriptor` through a separate mechanism.
+`FunctionDescriptor` through a separate mechanism. However, GraalVM's own
+SubstrateVM internals use `@CStruct`/`@CField` annotations for POSIX types
+(`pthread_attr_t`, `struct_sigaction`, `mcontext_t`, `struct_stat`, etc.) —
+the 8 committed `.cap` files capture these aarch64 layouts and are always
+required for cross-compilation. Attempting to skip the cache with
+`-H:-UseCAPCache` causes native-image to compile C query programs via the
+cross-compiler, producing aarch64 binaries that fail to execute on x86_64.
 
-Run `make gen-cap-cache` and commit the result when:
+Run `make gen-cap-cache` (Podman-based, no Pi required) and commit the result when:
 1. GraalVM CE version changes (version determines which C types are queried).
 2. Pi OS or glibc is updated (struct layouts may change).
-3. New `@CStruct` / `@CField` annotations are added to the project.
+3. New `@CStruct` / `@CField` annotations are added to the project (note: GraalVM's own internal
+   annotations already account for the 8 committed `.cap` files; this bullet is only relevant for
+   user-added C annotations which this project does not currently have).
 
 Adding new jextract FFM bindings does **not** require regenerating the cache.
 

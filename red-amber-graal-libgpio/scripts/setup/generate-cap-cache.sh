@@ -1,74 +1,71 @@
 #!/usr/bin/env bash
+# Generates the CAP cache for aarch64 cross-compilation via an arm64 Podman container.
+# Uses native-image -H:+NewCAPCache -H:+ExitAfterCAPCache, which compiles and runs small
+# C query programs to measure aarch64 type layouts, then exits without building a full image.
+# Much faster than a full native-image build — expected to complete in under a minute under QEMU.
 #
-# generate-cap-cache.sh
-#
-# Generates the C Annotation Processor (CAP) cache required for aarch64
-# cross-compilation. The cache records target struct layouts (field offsets,
-# type sizes) by compiling and running C code natively on BlackRaspberry.
-#
-# The resulting cap-cache/ directory is persistent (not under target/) and
-# should be committed to version control. Re-run this script if the GraalVM
-# version changes.
+# Replaces the previous Pi SSH-based approach. No Pi connectivity required.
 #
 # Prerequisites:
-#   - JAVA_HOME set to a GraalVM CE installation locally
-#   - The same GraalVM installation present on BlackRaspberry at the same path
-#   - JAR deployed to BlackRaspberry (run deploy-pi.sh first, or this script
-#     will deploy it automatically)
+#   - Podman installed
+#   - QEMU aarch64 binfmt registered (run: make setup-podman)
 
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-# Check JAVA_HOME is set and points to GraalVM
-if [ -z "${JAVA_HOME:-}" ]; then
-    echo "ERROR: JAVA_HOME is not set"
-    echo "  Set JAVA_HOME to a GraalVM CE installation (e.g. via: sdk use java 25.0.2-graalce)"
-    exit 1
-fi
-if [ ! -x "${JAVA_HOME}/bin/native-image" ]; then
-    echo "ERROR: JAVA_HOME does not appear to be a GraalVM CE installation: ${JAVA_HOME}"
-    echo "  native-image not found at ${JAVA_HOME}/bin/native-image"
-    exit 1
-fi
-
-# Pi GraalVM mirrors local JAVA_HOME — same absolute path on both machines
-NATIVE_IMAGE_PI="${JAVA_HOME}/bin/native-image"
-REMOTE_JAR="\$HOME/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar"
-REMOTE_CACHE="/tmp/red-amber-graal-libgpio-cap-cache"
+IMAGE_TAG="red-amber-graal-builder:25.0.2"
+JAR_NAME="red-amber-graal-libgpio-0.0.1-SNAPSHOT.jar"
 LOCAL_CACHE="$PROJECT_ROOT/cap-cache"
 
-# Check native-image exists on the Pi at the mirrored path
-if ! ssh blackraspberry "test -x ${NATIVE_IMAGE_PI}"; then
-    echo "ERROR: native-image not found on BlackRaspberry at ${NATIVE_IMAGE_PI}"
-    echo "  Ensure the same GraalVM CE is installed on BlackRaspberry at the same path"
+# Preflight checks
+if ! command -v podman &>/dev/null; then
+    echo "ERROR: podman not found."
     exit 1
 fi
 
+if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+    echo "ERROR: QEMU aarch64 binfmt handler not registered."
+    echo "  Run: make setup-podman"
+    exit 1
+fi
+
+# Build the JAR
 echo "==> Building JAR..."
 mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests
 
-JAR=$(ls "$PROJECT_ROOT"/target/red-amber-graal-libgpio-*.jar | head -1)
+JAR_PATH="$PROJECT_ROOT/target/$JAR_NAME"
+if [ ! -f "$JAR_PATH" ]; then
+    echo "ERROR: JAR not found at $JAR_PATH"
+    exit 1
+fi
 
-echo "==> Deploying JAR to BlackRaspberry..."
-ssh blackraspberry "mkdir -p ~/.local/lib/red-amber-graal"
-scp "$JAR" blackraspberry:~/.local/lib/red-amber-graal/red-amber-graal-libgpio.jar
+# Build/reuse container image
+if podman image exists "$IMAGE_TAG"; then
+    echo "==> Container image $IMAGE_TAG already exists, skipping build."
+    echo "    To rebuild: podman rmi $IMAGE_TAG"
+else
+    echo "==> Building container image $IMAGE_TAG (arm64, downloads GraalVM CE 25.0.2)..."
+    podman build \
+        --platform=linux/arm64 \
+        --tag "$IMAGE_TAG" \
+        "$PROJECT_ROOT"
+fi
 
-echo "==> Generating CAP cache on BlackRaspberry..."
-ssh blackraspberry "
-    rm -rf ${REMOTE_CACHE} && mkdir -p ${REMOTE_CACHE}
-    ${NATIVE_IMAGE_PI} \
+# Generate CAP cache inside arm64 container
+mkdir -p "$LOCAL_CACHE"
+echo "==> Generating CAP cache inside arm64 container (QEMU)..."
+podman run --rm \
+    --platform=linux/arm64 \
+    -v "$PROJECT_ROOT/target":/build:Z \
+    -v "$LOCAL_CACHE":/cap-cache:Z \
+    "$IMAGE_TAG" \
+    native-image \
         -H:+NewCAPCache \
         -H:+ExitAfterCAPCache \
-        -H:CAPCacheDir=${REMOTE_CACHE} \
-        -cp ${REMOTE_JAR} \
+        -H:CAPCacheDir=/cap-cache \
+        -cp "/build/$JAR_NAME" \
         dev.lofthouse.App
-"
-
-echo "==> Fetching CAP cache..."
-mkdir -p "$LOCAL_CACHE"
-scp "blackraspberry:${REMOTE_CACHE}/*" "$LOCAL_CACHE/"
 
 echo "==> Done. Cache written to $LOCAL_CACHE"
 echo "    Commit cap-cache/ to version control."
-echo "    Re-run this script if the GraalVM version changes."
+echo "    Re-run if the GraalVM CE version changes."
