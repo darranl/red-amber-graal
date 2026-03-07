@@ -6,6 +6,12 @@
 #
 # Replaces the previous Pi SSH-based approach. No Pi connectivity required.
 #
+# Usage:
+#   ./generate-cap-cache.sh [--skip-jar-build] [--cap-cache-dir=PATH]
+#
+#   --skip-jar-build     Omit the 'mvn package -DskipTests' step (avoids recursive Maven call)
+#   --cap-cache-dir=PATH Write cache to PATH instead of target/cap-cache
+#
 # Prerequisites:
 #   - Podman installed
 #   - QEMU aarch64 binfmt registered (run: make setup-podman)
@@ -15,7 +21,30 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_TAG="red-amber-graal-builder:25.0.2"
 JAR_NAME="red-amber-graal-libgpio-0.0.1-SNAPSHOT.jar"
-LOCAL_CACHE="$PROJECT_ROOT/cap-cache"
+CAP_CACHE_DIR="$PROJECT_ROOT/target/cap-cache"
+SKIP_JAR_BUILD=false
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --skip-jar-build)
+            SKIP_JAR_BUILD=true
+            ;;
+        --cap-cache-dir=*)
+            CAP_CACHE_DIR="${arg#--cap-cache-dir=}"
+            ;;
+        *)
+            echo "ERROR: Unknown argument: $arg"
+            exit 1
+            ;;
+    esac
+done
+
+# Early-exit if cache already present
+if compgen -G "$CAP_CACHE_DIR/*.cap" > /dev/null 2>&1; then
+    echo "==> CAP cache up to date at $CAP_CACHE_DIR, skipping."
+    exit 0
+fi
 
 # Preflight checks
 if ! command -v podman &>/dev/null; then
@@ -29,9 +58,11 @@ if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
     exit 1
 fi
 
-# Build the JAR
-echo "==> Building JAR..."
-mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests
+# Build the JAR (unless called from Maven lifecycle to avoid recursive invocation)
+if [ "$SKIP_JAR_BUILD" = false ]; then
+    echo "==> Building JAR..."
+    mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests
+fi
 
 JAR_PATH="$PROJECT_ROOT/target/$JAR_NAME"
 if [ ! -f "$JAR_PATH" ]; then
@@ -52,12 +83,12 @@ else
 fi
 
 # Generate CAP cache inside arm64 container
-mkdir -p "$LOCAL_CACHE"
+mkdir -p "$CAP_CACHE_DIR"
 echo "==> Generating CAP cache inside arm64 container (QEMU)..."
 podman run --rm \
     --platform=linux/arm64 \
     -v "$PROJECT_ROOT/target":/build:Z \
-    -v "$LOCAL_CACHE":/cap-cache:Z \
+    -v "$CAP_CACHE_DIR":/cap-cache:Z \
     "$IMAGE_TAG" \
     native-image \
         -H:+NewCAPCache \
@@ -66,6 +97,5 @@ podman run --rm \
         -cp "/build/$JAR_NAME" \
         dev.lofthouse.App
 
-echo "==> Done. Cache written to $LOCAL_CACHE"
-echo "    Commit cap-cache/ to version control."
-echo "    Re-run if the GraalVM CE version changes."
+echo "==> Done. Cache written to $CAP_CACHE_DIR"
+echo "    Re-run after 'mvn clean', a GraalVM CE upgrade, or a Pi OS/glibc update."

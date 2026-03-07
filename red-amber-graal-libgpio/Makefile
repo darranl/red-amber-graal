@@ -9,7 +9,7 @@ help:
 	@printf "\nSetup (one-time):\n"
 	@printf "  %-24s %s\n" "setup-libs"           "Symlink aarch64 static libs from Pi into local GraalVM CE"
 	@printf "  %-24s %s\n" "setup-podman"         "Install QEMU packages for arm64 Podman containers (Arch Linux)"
-	@printf "  %-24s %s\n" "gen-cap-cache"        "Generate CAP cache on Pi and fetch result back"
+	@printf "  %-24s %s\n" "gen-cap-cache"        "Generate CAP cache via Podman (auto-runs during native build if absent)"
 	@printf "  %-24s %s\n" "gen-ffm-bindings"     "Generate FFM Java bindings for libgpiod via jextract"
 	@printf "\nDeploy:\n"
 	@printf "  %-24s %s\n" "deploy"               "Build JVM JAR and deploy to Pi"
