@@ -18,13 +18,9 @@ BlackRaspberry. Supports both JVM and GraalVM native image deployment.
 | `make deploy-native-pi` | aarch64 native binary built on BlackRaspberry | Pi via `make run-native` |
 | `make deploy-native-podman` | aarch64 native binary via Podman/QEMU arm64 | Pi via `make run-native` |
 
-There is currently no working local native build path:
-
-- **Maven cross-compile** (`mvn package -Dnative`) — blocked by a GraalVM CE 25.0.2
-  `ClassCastException` in `ForeignFunctionsFeature` when FFM is enabled with `--target=linux-aarch64`.
-- **Podman/QEMU** (`make deploy-native-podman`) — hangs; did not complete after running overnight.
-
-See `notes/graalvm-ffm-cross-compile-bug.md` for full details and current status.
+The Maven cross-compile path (`mvn package -Dnative`) works with the
+`-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64` workaround in `pom.xml`.
+See `notes/graalvm-ffm-cross-compile-bug.md` for root cause and fix details.
 
 Local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`) are not updated.
 
@@ -155,11 +151,9 @@ The `-H:` variants still exist as experimental aliases but emit warnings.
 ## Status
 
 libgpiod FFM bindings are integrated and the UK traffic light sequence runs
-on the Pi in JVM mode (`make deploy && make run`). There is currently **no
-working local path to build a native binary with FFM enabled** — both the
-Maven cross-compile and Podman/QEMU paths are blocked (see
-`notes/graalvm-ffm-cross-compile-bug.md`). Both paths are retained for future
-testing.
+on the Pi in JVM mode (`make deploy && make run`). Local Maven cross-compile
+to aarch64 native image now works (`mvn package -Dnative`) via the
+`-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64` workaround in `pom.xml`.
 
 Notes on completed integration work:
 - `-H:-ForeignAPISupport` has been removed; `--enable-native-access=ALL-UNNAMED`
@@ -173,11 +167,12 @@ Notes on completed integration work:
   Doc: https://www.graalvm.org/jdk25/reference-manual/native-image/native-code-interoperability/ffm-api/#downcalls
 - CAP cache regeneration was **not** needed when adding FFM bindings (see
   "CAP cache — when to regenerate" above).
-- Maven cross-compile (`mvn package -Dnative`) crashes in GraalVM CE 25.0.2 with
-  a `ClassCastException` in `ForeignFunctionsFeature` when FFM is enabled; see
-  `notes/graalvm-ffm-cross-compile-bug.md`.
+- Maven cross-compile (`mvn package -Dnative`) was blocked by a GraalVM CE 25.0.2
+  `ClassCastException` in `ForeignFunctionsFeature`. Fixed by adding
+  `-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64` to `pom.xml`'s native profile — this
+  overrides `CABI.current()` for the builder JVM so `AbiUtils.create()` selects the correct
+  AArch64 ABI implementation. See `notes/graalvm-ffm-cross-compile-bug.md`.
 - Podman/QEMU arm64 build (`make deploy-native-podman`) hung overnight without
-  completing — likely stalled during native-image analysis or compilation under
-  QEMU emulation.
+  completing — retained but superseded by the Maven workaround.
 - The Podman build does **not** need libgpiod in the container — `gpiod_h`
   defers to runtime `dlopen` on the Pi.

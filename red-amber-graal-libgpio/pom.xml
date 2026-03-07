@@ -81,6 +81,12 @@
               <imageName>red-amber-graal-libgpio-native</imageName>
               <mainClass>dev.lofthouse.App</mainClass>
               <buildArgs>
+                <!-- Override CABI for the native-image builder JVM so AbiUtils.create() returns
+                     ABIs.LinuxAArch64 instead of ABIs.SysV when cross-compiling to aarch64.
+                     Without this, CABI.current() returns the host ABI (SYS_V on x86_64), causing
+                     a ClassCastException in ForeignFunctionsFeature when FFM is enabled.
+                     See notes/graalvm-ffm-cross-compile-bug.md for full root-cause analysis. -->
+                <buildArg>-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64</buildArg>
                 <buildArg>--target=linux-aarch64</buildArg>
                 <buildArg>--native-compiler-path=/usr/bin/aarch64-linux-gnu-gcc</buildArg>
                 <buildArg>--native-compiler-options=--sysroot=${user.home}/mnt/pios12_root</buildArg>
