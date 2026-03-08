@@ -13,6 +13,9 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
+    <!-- IMPORTANT: When upgrading pi4j.version, regenerate the FFM reachability
+         metadata by running: make gen-native-config
+         See README.md § "When to regenerate the FFM metadata" for full instructions. -->
     <pi4j.version>4.0.0</pi4j.version>
     <slf4j.version>2.0.16</slf4j.version>
   </properties>

@@ -6,16 +6,16 @@ an x86_64 Linux development machine to aarch64 using GraalVM CE 25, the
 `aarch64-linux-gnu-gcc` toolchain, and an SSHFS mount of the Pi's root filesystem 
 as the sysroot.
 
-**Status (2026-03-07):**  
-✅ JVM deployment fully functional and tested  
-⚠️ Native image builds but has runtime FFM registration issue - see [Known Issues](#known-issues)
+**Status (2026-03-08):**
+✅ JVM deployment fully functional and tested
+✅ Native image builds and runs correctly (on-Pi build via `deploy-native-pi`; cross-compile via `deploy-native`)
 
 The project produces two deployable artefacts that coexist on the Pi:
 
 | Artefact | Status | Make target | Pi path |
 |---|---|---|---|
 | Shaded JVM JAR + wrapper | ✅ Working | `make deploy` | `~/.local/bin/red-amber-graal-pi4j` |
-| Native binary | ⚠️ Runtime issue | `make deploy-native` | `~/.local/bin/red-amber-graal-pi4j-native` |
+| Native binary | ✅ Working | `make deploy-native` / `make deploy-native-pi` | `~/.local/bin/red-amber-graal-pi4j-native` |
 
 ## Makefile quick-reference
 
@@ -26,11 +26,12 @@ Usage: make <target>
 
 Setup (one-time):
   setup-libs           Symlink aarch64 static libs from Pi into local GraalVM CE
-  gen-cap-cache        Generate CAP cache on Pi and fetch result back
+  setup-podman         Install QEMU packages for arm64 Podman containers (Arch Linux)
+  gen-native-config    Run native-image-agent on Pi to generate reachability-metadata.json
 
 Deploy:
   deploy               Build shaded JAR and deploy to Pi
-  deploy-native        Build aarch64 native binary and deploy to Pi
+  deploy-native        Build aarch64 native binary (Maven cross-compile) and deploy to Pi
   deploy-native-pi     Build aarch64 native binary on BlackRaspberry and install in place
   deploy-native-podman Build aarch64 native binary (Podman/QEMU arm64) and deploy to Pi
 
@@ -148,7 +149,7 @@ make deploy-native         # build native binary (Maven cross-compile) + scp to 
 make deploy-native-podman  # build native binary (Podman/QEMU arm64) + scp to Pi
 ```
 
-Note: `deploy-native-pi` target has been removed - cross-compilation only.
+Note: `deploy-native-pi` builds directly on BlackRaspberry (no cross-compiler needed) — useful when validating the native image before committing to a cross-compile setup.
 
 Both scripts check their prerequisites and print clear errors if anything is
 missing (sysroot not mounted, native-image not found, etc.).
@@ -230,45 +231,40 @@ libgpiod, making the code simpler and more maintainable than direct FFM calls.
 
 Pi4J v4's `pi4j-plugin-ffm` uses the FFM API internally to communicate with libgpiod.
 
-**JVM Mode:** ✅ Fully functional  
-**Native Image:** ⚠️ Partial - Pi4J v4.0.0 does not include GraalVM native-image metadata
+**JVM Mode:** ✅ Fully functional
+**Native Image:** ✅ Working (with manually maintained `reachability-metadata.json`)
 
-We've created manual FFM registration in `src/main/resources/META-INF/native-image/.../reachability-metadata.json`,
-but GraalVM doesn't apply it effectively at runtime (see [Known Issues](#known-issues)).
-The native binary builds but fails during Pi4J initialization with FFM registration errors.
+Pi4J v4.0.0 ships **no** GraalVM native-image metadata of its own. The FFM reachability
+metadata is maintained in this project at:
 
----
-
-## Known Issues
-
-### Native Image Runtime Error (2026-03-07)
-
-**Issue:** Native image builds successfully but fails at runtime with:
 ```
-MissingForeignRegistrationError: Cannot perform downcall with leaf type (long,int)long
+src/main/resources/META-INF/native-image/dev.lofthouse/red-amber-graal-pi4j/reachability-metadata.json
 ```
 
-**Details:**
-- Build completes: 19 MB binary, ~47 seconds, reports "8 downcalls registered"
-- Fails during Pi4J initialization: `Pi4JNativeContext.<clinit>` line 38
-- JVM version works perfectly, proving code and Pi4J are correct
-- Created manual `reachability-metadata.json` with 8 FFM downcall shapes
-- GraalVM appears to read metadata at build time but doesn't apply it at runtime
+#### When to regenerate the FFM metadata
 
-**Root Cause:**
-Pi4J v4.0.0 does not include GraalVM native-image metadata. Manual registration was
-created but GraalVM doesn't apply FFM metadata effectively at runtime. This may be:
-- GraalVM bug in FFM metadata handling for cross-compiled binaries
-- Pi4J initialization creating FFM calls before metadata is loaded
-- Subtle mismatch in registration format vs Pi4J's usage
+**Regenerate when Pi4J is upgraded** (`pi4j.version` in `pom.xml`). Pi4J creates all its
+FFM downcall stubs in static initialisers, so upgrading Pi4J may add, remove, or change
+the `FunctionDescriptor` shapes that must be declared in this file.
 
-**Workaround:**
-Use the JVM version (shaded JAR) which is fully functional and tested.
+The metadata was generated using the GraalVM `native-image-agent` running the JAR on
+BlackRaspberry for one full traffic-light cycle. To regenerate:
 
-**Further Investigation:**
-- File issue with Pi4J project requesting native-image metadata
-- Deep-dive into Pi4J's FFM initialization sequence
-- Test with GraalVM native build (not cross-compile) to isolate cross-compilation issues
+```bash
+# Bump pi4j.version in pom.xml first, then:
+make gen-native-config
+# Review target/agent-config/reachability-metadata.json
+# Copy its contents into src/main/resources/META-INF/native-image/.../reachability-metadata.json
+make deploy-native-pi     # verify the new binary works
+```
+
+You do **not** need to regenerate when:
+- Java application code changes (no new Pi4J calls are added/removed)
+- GraalVM CE version changes (Pi4J's downcall signatures are not GraalVM-version-specific)
+- The sysroot is remounted or CAP cache is refreshed
+
+See [`notes/pi4j-graalvm-ffm-registration.md`](../../notes/pi4j-graalvm-ffm-registration.md)
+for a detailed explanation of why this metadata is needed and how it was derived.
 
 ---
 

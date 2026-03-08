@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup-libs setup-podman gen-cap-cache \
-        deploy deploy-native deploy-native-podman \
+.PHONY: help setup-libs setup-podman gen-native-config \
+        deploy deploy-native deploy-native-pi deploy-native-podman \
         run run-native debug run-local run-local-native
 
 help:
@@ -9,10 +9,11 @@ help:
 	@printf "\nSetup (one-time):\n"
 	@printf "  %-24s %s\n" "setup-libs"           "Symlink aarch64 static libs from Pi into local GraalVM CE"
 	@printf "  %-24s %s\n" "setup-podman"         "Install QEMU packages for arm64 Podman containers (Arch Linux)"
-	@printf "  %-24s %s\n" "gen-cap-cache"        "Generate CAP cache via Podman (auto-runs during native build if absent)"
+	@printf "  %-24s %s\n" "gen-native-config"    "Run native-image-agent on Pi to generate reachability-metadata.json"
 	@printf "\nDeploy:\n"
 	@printf "  %-24s %s\n" "deploy"               "Build shaded JAR and deploy to Pi"
 	@printf "  %-24s %s\n" "deploy-native"        "Build aarch64 native binary (Maven cross-compile) and deploy to Pi"
+	@printf "  %-24s %s\n" "deploy-native-pi"     "Build aarch64 native binary on BlackRaspberry and install in place"
 	@printf "  %-24s %s\n" "deploy-native-podman" "Build aarch64 native binary (Podman/QEMU arm64) and deploy to Pi"
 	@printf "\nRun:\n"
 	@printf "  %-24s %s\n" "run"              "Run JVM version on Pi via SSH"
@@ -28,14 +29,17 @@ setup-libs:
 setup-podman:
 	./scripts/setup/setup-podman.sh
 
-gen-cap-cache:
-	./scripts/setup/generate-cap-cache.sh
+gen-native-config:
+	./scripts/setup/generate-native-agent-config.sh
 
 deploy:
 	./scripts/deploy/deploy-pi.sh
 
 deploy-native:
 	./scripts/deploy/deploy-pi-native.sh
+
+deploy-native-pi:
+	./scripts/deploy/deploy-pi-native-on-pi.sh
 
 deploy-native-podman:
 	./scripts/deploy/deploy-pi-native-podman.sh

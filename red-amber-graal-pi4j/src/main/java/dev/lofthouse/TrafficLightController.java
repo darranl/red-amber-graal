@@ -26,12 +26,14 @@ class TrafficLightController implements AutoCloseable {
         greenLed = pi4j.digitalOutput().create(PIN_GREEN);
     }
 
-    void run() throws InterruptedException {
+    void run(int cycles) throws InterruptedException {
+        int completed = 0;
         while (!Thread.currentThread().isInterrupted()) {
             for (TrafficPhase phase : TrafficPhase.values()) {
                 applyPhase(phase);
                 Thread.sleep(phase.durationMs());
             }
+            if (cycles > 0 && ++completed >= cycles) break;
         }
     }
 

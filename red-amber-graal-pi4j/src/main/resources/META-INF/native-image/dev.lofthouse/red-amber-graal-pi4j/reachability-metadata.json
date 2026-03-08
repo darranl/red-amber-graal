@@ -2,36 +2,125 @@
   "foreign": {
     "downcalls": [
       {
-        "returnType": "long",
-        "parameterTypes": ["long", "int"]
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "jint"
+        ],
+        "options": {
+          "captureCallState": true
+        }
       },
       {
-        "returnType": "long",
-        "parameterTypes": ["long"]
-      },
-      {
-        "returnType": "int",
-        "parameterTypes": ["long"]
-      },
-      {
-        "returnType": "int",
-        "parameterTypes": ["long", "int"]
-      },
-      {
-        "returnType": "int",
-        "parameterTypes": ["long", "long", "int"]
-      },
-      {
-        "returnType": "void",
-        "parameterTypes": ["long"]
-      },
-      {
-        "returnType": "void",
-        "parameterTypes": ["long", "int"]
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint",
+          "void*",
+          "void*"
+        ],
+        "options": {
+          "captureCallState": true
+        }
       },
       {
         "returnType": "void",
-        "parameterTypes": ["long", "long"]
+        "parameterTypes": [
+          "jint"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "jlong",
+          "jlong"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jlong",
+        "parameterTypes": [
+          "jint",
+          "jlong",
+          "void*"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "void*",
+          "jint"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint"
+        ]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "void*",
+          "jint"
+        ]
+      },
+      {
+        "returnType": "void",
+        "parameterTypes": [],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": [
+          "jint"
+        ],
+        "options": {
+          "captureCallState": true
+        }
+      },
+      {
+        "returnType": "jint",
+        "parameterTypes": [
+          "jint",
+          "jlong",
+          "void*"
+        ],
+        "options": {
+          "captureCallState": true
+        }
       }
     ]
   }
