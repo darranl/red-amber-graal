@@ -29,10 +29,9 @@ Note: `deploy-native-pi` has been **removed** - cross-compilation only per proje
 |---|---|
 | `pom.xml` | Native profile contains all cross-compilation flags; includes Pi4J dependencies and shade plugin |
 | `Makefile` | Convenience targets for all operations; run `make help` |
-| `Containerfile` | arm64 Debian bookworm image with GraalVM CE 25.0.2 + gcc for Podman builds |
 | `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
 | `scripts/setup/setup-podman.sh` | One-time: install QEMU packages on Arch Linux, verify binfmt handler |
-| `scripts/setup/generate-cap-cache.sh` | Generates CAP cache via Podman arm64 container (no Pi required); auto-invoked by native Maven build |
+| `scripts/setup/generate-cap-cache.sh` | Generates CAP cache via Podman arm64 container (no Pi required); auto-invoked by native Maven build; uses `ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25` |
 | `scripts/build/build-native-podman.sh` | Build native binary via arm64 Podman container |
 | `scripts/deploy/deploy-pi.sh` | Build shaded JAR → scp to Pi |
 | `scripts/deploy/deploy-pi-native.sh` | Build native binary via Maven cross-compile → scp to Pi (requires sysroot + GraalVM CE) |

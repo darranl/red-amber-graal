@@ -15,11 +15,13 @@
 # Prerequisites:
 #   - Podman installed
 #   - QEMU aarch64 binfmt registered (run: make setup-podman)
+#   - ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25 image available locally
+#     (build with: cd ../graalvm-pi-builder && make build-dev)
 
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-IMAGE_TAG="red-amber-graal-builder:25.0.2"
+IMAGE_TAG="ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25"
 JAR_NAME="red-amber-graal-libgpio-0.0.1-SNAPSHOT.jar"
 CAP_CACHE_DIR="$PROJECT_ROOT/target/cap-cache"
 SKIP_JAR_BUILD=false
@@ -70,17 +72,13 @@ if [ ! -f "$JAR_PATH" ]; then
     exit 1
 fi
 
-# Build/reuse container image
-if podman image exists "$IMAGE_TAG"; then
-    echo "==> Container image $IMAGE_TAG already exists, skipping build."
-    echo "    To rebuild: podman rmi $IMAGE_TAG"
-else
-    echo "==> Building container image $IMAGE_TAG (arm64, downloads GraalVM CE 25.0.2)..."
-    podman build \
-        --platform=linux/arm64 \
-        --tag "$IMAGE_TAG" \
-        "$PROJECT_ROOT"
+# Verify container image is available
+if ! podman image exists "$IMAGE_TAG"; then
+    echo "ERROR: Container image $IMAGE_TAG not found."
+    echo "  Build it with: cd ../graalvm-pi-builder && make build-dev"
+    exit 1
 fi
+echo "==> Using container image $IMAGE_TAG"
 
 # Generate CAP cache inside arm64 container
 mkdir -p "$CAP_CACHE_DIR"

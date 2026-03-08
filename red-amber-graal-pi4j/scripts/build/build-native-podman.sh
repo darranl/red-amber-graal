@@ -11,7 +11,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-IMAGE_TAG="red-amber-graal-builder:25.0.2"
+IMAGE_TAG="ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25"
 JAR_NAME="red-amber-graal-pi4j-0.0.1-SNAPSHOT.jar"
 BINARY_NAME="red-amber-graal-pi4j-native"
 
@@ -39,18 +39,14 @@ if [ ! -f "$JAR_PATH" ]; then
     exit 1
 fi
 
-# --- Build the container image (skip if already exists) ----------------------
+# --- Verify container image is available -------------------------------------
 
-if podman image exists "$IMAGE_TAG"; then
-    echo "==> Container image $IMAGE_TAG already exists, skipping build."
-    echo "    To rebuild: podman rmi $IMAGE_TAG"
-else
-    echo "==> Building container image $IMAGE_TAG (arm64, downloads GraalVM CE 25.0.2)..."
-    podman build \
-        --platform=linux/arm64 \
-        --tag "$IMAGE_TAG" \
-        "$PROJECT_ROOT"
+if ! podman image exists "$IMAGE_TAG"; then
+    echo "ERROR: Container image $IMAGE_TAG not found."
+    echo "  Build it with: cd ../graalvm-pi-builder && make build-dev"
+    exit 1
 fi
+echo "==> Using container image $IMAGE_TAG"
 
 # --- Run native-image inside the container -----------------------------------
 

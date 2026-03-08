@@ -30,10 +30,9 @@ Local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`
 |---|---|
 | `pom.xml` | Native profile contains all cross-compilation flags |
 | `Makefile` | Convenience targets for all operations; run `make help` |
-| `Containerfile` | arm64 Debian bookworm image with GraalVM CE 25.0.2 + gcc for Podman builds |
 | `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
 | `scripts/setup/setup-podman.sh` | One-time: install QEMU packages on Arch Linux, verify binfmt handler |
-| `scripts/setup/generate-cap-cache.sh` | Generates CAP cache via Podman arm64 container (no Pi required); auto-invoked by native Maven build |
+| `scripts/setup/generate-cap-cache.sh` | Generates CAP cache via Podman arm64 container (no Pi required); auto-invoked by native Maven build; uses `ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25` |
 | `scripts/setup/generate-ffm-bindings.sh` | Generate FFM bindings from gpiod.h via jextract — see README |
 | `scripts/build/build-native-podman.sh` | Build native binary via arm64 Podman container (workaround for GraalVM cross-compile bug) |
 | `scripts/deploy/deploy-pi.sh` | Build JAR → scp to Pi |
