@@ -1,0 +1,19 @@
+FROM --platform=linux/arm64 debian:bookworm-slim
+
+ARG GRAALVM_VERSION=25.0.2
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget ca-certificates gcc libc-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget -q \
+  "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-aarch64_bin.tar.gz" \
+  -O /tmp/graalvm.tar.gz \
+  && mkdir -p /opt/graalvm \
+  && tar -xzf /tmp/graalvm.tar.gz -C /opt/graalvm --strip-components=1 \
+  && rm /tmp/graalvm.tar.gz
+
+ENV JAVA_HOME=/opt/graalvm
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+WORKDIR /build
