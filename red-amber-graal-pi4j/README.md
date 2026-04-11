@@ -87,12 +87,12 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
    sysroot mount). Requires the sysroot to be mounted and GraalVM CE 25.0.2 to be
    installed on BlackRaspberry.
 
-5. **CAP cache** — must exist before the native build. The cache is auto-generated
-   during the native build; regenerate only if the GraalVM CE version changes 
-   (see [CAP cache](#cap-cache)):
+5. **Podman + QEMU** — required to auto-generate the CAP cache during the native build:
    ```bash
-   make gen-cap-cache   # requires Podman + QEMU (make setup-podman)
+   make setup-podman
    ```
+   The CAP cache is generated automatically by `mvn package -Dnative` (no separate step needed).
+   Regenerate only if the GraalVM CE version changes (see [CAP cache](#cap-cache)).
 
 ### BlackRaspberry (aarch64)
 
@@ -166,11 +166,12 @@ make debug        # runs the JVM version with JDWP debugging (port 5005)
 
 ## CAP cache
 
-The C Annotation Processor (CAP) cache lives in `cap-cache/` and is committed
-to version control. It contains precomputed C type layout information — struct
-field offsets and type sizes — for the aarch64/Linux/glibc target. This
-information is recorded by running small C programs natively on aarch64
-and cannot be generated locally on x86_64 without QEMU.
+The C Annotation Processor (CAP) cache lives in `target/cap-cache/` and is
+**not** committed to version control — it is auto-generated during each native
+build (`mvn package -Dnative`) and wiped by `mvn clean`. It contains precomputed
+C type layout information — struct field offsets and type sizes — for the
+aarch64/Linux/glibc target. This information is recorded by running small C
+programs natively on aarch64 and cannot be generated locally on x86_64 without QEMU.
 
 ### What it is
 
@@ -196,18 +197,18 @@ You do NOT need to regenerate when:
 - Java application code changes (no new C annotations).
 - The Pi's GraalVM installation is updated *and* the version matches the local
   GraalVM CE version (the GraalVM version is what matters, not the Pi binary).
-- The sysroot is remounted (the cache is already local in `cap-cache/`).
+- The sysroot is remounted (the cache is local in `target/cap-cache/`).
 
 ### Regenerating
 
-```bash
-make gen-cap-cache
-```
+The cache is regenerated automatically by `mvn package -Dnative`. To force
+regeneration without a full image build (e.g. after `mvn clean`), run the
+native build — the exec-maven-plugin binding will invoke
+`scripts/setup/generate-cap-cache.sh` before native-image runs.
 
-The script builds the JAR, then runs native-image inside an arm64 Podman
-container (QEMU user-mode emulation) with `+NewCAPCache +ExitAfterCAPCache`,
-which generates the cache and exits without building a full image. The cache
-is written directly to `cap-cache/`. Commit the updated `cap-cache/` directory.
+The script runs native-image inside an arm64 Podman container (QEMU user-mode
+emulation) with `+NewCAPCache +ExitAfterCAPCache`, which generates the cache and
+exits without building a full image. The cache is written to `target/cap-cache/`.
 
 Prerequisites: Podman installed and QEMU aarch64 binfmt registered
 (`make setup-podman`). No Pi connectivity required.
@@ -232,33 +233,37 @@ libgpiod, making the code simpler and more maintainable than direct FFM calls.
 Pi4J v4's `pi4j-plugin-ffm` uses the FFM API internally to communicate with libgpiod.
 
 **JVM Mode:** ✅ Fully functional
-**Native Image:** ✅ Working (with manually maintained `reachability-metadata.json`)
+**Native Image:** ✅ Working (metadata provided by `pi4j-ffm-metadata-bookworm-graal25`)
 
 Pi4J v4.0.0 ships **no** GraalVM native-image metadata of its own. The FFM reachability
-metadata is maintained in this project at:
+metadata is provided by a separate artifact in this repository:
 
 ```
-src/main/resources/META-INF/native-image/dev.lofthouse/red-amber-graal-pi4j/reachability-metadata.json
+dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-1
 ```
 
-#### When to regenerate the FFM metadata
+This is declared as a dependency in `pom.xml`. native-image discovers the metadata
+automatically from the classpath (`META-INF/native-image/`). The artifact is built from
+the `pi4j-graalvm-metadata/` project in this repository.
 
-**Regenerate when Pi4J is upgraded** (`pi4j.version` in `pom.xml`). Pi4J creates all its
+#### When to update the FFM metadata
+
+**Update when Pi4J is upgraded** (`pi4j.version` in `pom.xml`). Pi4J creates all its
 FFM downcall stubs in static initialisers, so upgrading Pi4J may add, remove, or change
-the `FunctionDescriptor` shapes that must be declared in this file.
+the `FunctionDescriptor` shapes registered in the metadata artifact.
 
-The metadata was generated using the GraalVM `native-image-agent` running the JAR on
-BlackRaspberry for one full traffic-light cycle. To regenerate:
+To regenerate:
 
 ```bash
 # Bump pi4j.version in pom.xml first, then:
 make gen-native-config
 # Review target/agent-config/reachability-metadata.json
-# Copy its contents into src/main/resources/META-INF/native-image/.../reachability-metadata.json
-make deploy-native-pi     # verify the new binary works
+# Update pi4j-graalvm-metadata/ project and publish a new artifact version
+# Bump the artifact version in pom.xml to the newly published version
+make deploy-native     # verify the new binary works
 ```
 
-You do **not** need to regenerate when:
+You do **not** need to update when:
 - Java application code changes (no new Pi4J calls are added/removed)
 - GraalVM CE version changes (Pi4J's downcall signatures are not GraalVM-version-specific)
 - The sysroot is remounted or CAP cache is refreshed
