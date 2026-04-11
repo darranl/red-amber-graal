@@ -1,7 +1,7 @@
 # Pi4J v4 Native Image Issue - Investigation Notes
 
-**Date:** 2026-03-07  
-**Status:** JVM ✅ Working | Native Image ⚠️ Build succeeds, Runtime fails
+**Date:** 2026-03-07 (resolved 2026-04-11)
+**Status:** JVM ✅ Working | Native Image ✅ Working (resolved via `pi4j-ffm-metadata-bookworm-graal25`)
 
 ## Summary
 

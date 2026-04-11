@@ -101,31 +101,14 @@ Adding new jextract FFM bindings does **not** require regenerating the cache.
 
 ## FFM downcall registration — when to update
 
-The file `src/main/resources/META-INF/native-image/dev.lofthouse/red-amber-graal-pi4j/reachability-metadata.json`
-registers **shapes** (unique return+parameter type combinations), not individual functions. The
-native-image runtime requires a pre-compiled stub for each unique shape used in a downcall.
+GraalVM reachability metadata for Pi4J FFM downcalls is provided by the external artifact
+`dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-1` (project `pi4j-graalvm-metadata/`).
+This project carries no local `reachability-metadata.json`.
 
-The JSON needs updating when:
-1. A new `gpiod_h` function is called from `TrafficLightController.java` whose descriptor shape
-   is not already in the JSON. Check the existing 5 shapes (see "Key files" above) — if the new
-   function's `(returnType, parameterTypes)` combination already appears, no change is needed.
-2. FFM bindings are regenerated (via `make gen-ffm-bindings`) and new functions are added to
-   `TrafficLightController.java` with novel descriptor shapes.
-
-You do NOT need to update when:
-- Adding new calls to existing shapes (e.g., a second function with `void*(void*)` signature).
-- Regenerating FFM bindings without adding new calls in `TrafficLightController.java`.
-
-**Alternative:** The GraalVM Tracing Agent can auto-generate this metadata from a live run:
-
-```bash
-# On BlackRaspberry, with the JAR deployed:
-java -agentlib:native-image-agent=config-output-dir=META-INF/native-image \
-     --enable-native-access=ALL-UNNAMED \
-     -jar ~/.local/bin/red-amber-graal-pi4j.jar
-```
-
-This requires libgpiod at runtime and GPIO hardware access, so it must run on the Pi, not locally.
+When to update the metadata artifact version:
+- Pi4J version bump — a new `pi4j.version` in `pom.xml` requires a matching metadata artifact
+  (regenerate via `pi4j-graalvm-metadata` and publish a new version)
+- GraalVM major version change — `graal25` in the artifactId encodes GraalVM 25.x
 
 Doc reference:
 https://www.graalvm.org/jdk25/reference-manual/native-image/native-code-interoperability/ffm-api/#downcalls
@@ -167,32 +150,16 @@ direct FFM bindings.
 - Traffic light sequence runs correctly
 - Deploy: `make deploy && make run`
 
-### Native Image Mode: ⚠️ BUILD SUCCESS, RUNTIME ISSUE
-- Native image builds successfully (19 MB, ~47s cross-compile)
-- Build reports "8 downcalls registered for foreign access"
-- **Runtime failure**: `MissingForeignRegistrationError: Cannot perform downcall with leaf type (long,int)long`
-- Fails during Pi4J initialization (`Pi4JNativeContext.<clinit>` at line 38)
+### Native Image Mode: ✅ FULLY FUNCTIONAL (resolved 2026-04-11)
+- Native image builds successfully (19.26 MB, ~32s cross-compile via Maven)
+- Build reports "17 downcalls registered for foreign access"
+- Traffic light sequence confirmed working on BlackRaspberry
+- Deploy: `JAVA_HOME=~/.sdkman/candidates/java/25.0.2-graalce make deploy-native && make run-native`
 
-**Root Cause Investigation (2026-03-07):**
-- Pi4J v4.0.0 does NOT include GraalVM native-image metadata
-- Created manual `src/main/resources/META-INF/native-image/.../reachability-metadata.json`
-- Registered 8 FFM downcall descriptor shapes (including the failing `(long,int)→long`)
-- Build confirms metadata is read ("8 downcalls registered")
-- BUT runtime still fails on the FIRST registered shape
-- JVM version works perfectly, proving code and Pi4J are correct
-- Issue appears to be GraalVM not applying FFM metadata at runtime (possible bug)
-- Or Pi4J initialization creates FFM calls before metadata is loaded
-
-**Attempted Solutions:**
-- ✅ Created reachability-metadata.json with all needed shapes
-- ✅ Verified metadata is in the JAR
-- ✅ Confirmed build picks up metadata (8 downcalls registered)
-- ❌ Runtime still fails despite registration
-- ❌ Tried native-image.properties file (invalid approach)
-- ❌ Attempted explicit registration flags (no such flags exist)
-
-**Current Recommendation:**
-Use JVM mode (shaded JAR) for deployment - fully functional and tested.
+**Resolution:** FFM reachability metadata moved to the external `pi4j-ffm-metadata-bookworm-graal25`
+artifact (project `pi4j-graalvm-metadata/`). The earlier hand-rolled 8-shape JSON was incomplete;
+the agent-captured 21-shape artifact covers all Pi4J FFM downcall signatures. See
+`PI4J-NATIVE-IMAGE-ISSUE.md` for the full history.
 
 Notes on the Pi4J conversion:
 - Replaced jextract-generated FFM bindings with Pi4J's high-level `DigitalOutput` API

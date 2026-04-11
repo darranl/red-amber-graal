@@ -13,9 +13,9 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
-    <!-- IMPORTANT: When upgrading pi4j.version, regenerate the FFM reachability
-         metadata by running: make gen-native-config
-         See README.md § "When to regenerate the FFM metadata" for full instructions. -->
+    <!-- IMPORTANT: When upgrading pi4j.version, also bump the version of
+         pi4j-ffm-metadata-bookworm-graal25 in the dependency below and publish
+         a new artifact from the pi4j-graalvm-metadata project. -->
     <pi4j.version>4.0.0</pi4j.version>
     <slf4j.version>2.0.16</slf4j.version>
   </properties>
@@ -52,6 +52,13 @@
       <groupId>com.pi4j</groupId>
       <artifactId>pi4j-plugin-ffm</artifactId>
       <version>${pi4j.version}</version>
+    </dependency>
+    <!-- GraalVM reachability metadata for pi4j-plugin-ffm FFM downcalls.
+         Zero-code JAR; native-image auto-discovers META-INF/native-image/ from classpath. -->
+    <dependency>
+      <groupId>dev.lofthouse.pi4j</groupId>
+      <artifactId>pi4j-ffm-metadata-bookworm-graal25</artifactId>
+      <version>4.0.0-1</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
