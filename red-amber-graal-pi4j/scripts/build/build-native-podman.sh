@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Build the aarch64 native binary via a Podman arm64 container under QEMU.
-# This avoids the GraalVM CE 25.0.2 cross-compile bug where ForeignFunctionsFeature
-# selects the host ABI (AMD64) instead of the target ABI (AArch64), crashing with
-# a ClassCastException.  See notes/graalvm-ffm-cross-compile-bug.md.
+# NOT VIABLE: Podman/QEMU native build hung overnight during testing — impractical build time.
+# Use deploy-pi-native.sh (Maven cross-compile via container sysroot) instead.
+# Preserved for debugging purposes only.
+#
+# Original intent: build via a Podman arm64 container under QEMU to work around the
+# GraalVM CE 25.0.2 cross-compile ClassCastException. That bug is now fixed via the
+# -J-Djdk.internal.foreign.CABI=LINUX_AARCH_64 property in pom.xml. See
+# notes/graalvm-ffm-cross-compile-bug.md.
 #
 # Prerequisites:
 #   - Podman installed

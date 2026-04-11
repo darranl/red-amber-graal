@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Build the aarch64 native binary via Podman/QEMU and deploy it to BlackRaspberry.
-# See scripts/build/build-native-podman.sh for build prerequisites.
+# NOT VIABLE: Podman/QEMU native build hung overnight during testing — impractical build time.
+# Use deploy-pi-native.sh (Maven cross-compile via container sysroot) instead.
+# Preserved for debugging purposes only.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

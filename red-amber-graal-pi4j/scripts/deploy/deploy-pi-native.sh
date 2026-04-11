@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
+# Cross-compile an aarch64 native binary via Maven and deploy it to BlackRaspberry.
+#
+# Uses the graalvm-pi-builder container image as the aarch64 sysroot. Rootless
+# Podman requires 'podman image mount' to run inside a user namespace — this
+# script re-invokes itself inside 'podman unshare' automatically for the build
+# phase, then returns to the outer shell for the deploy (scp) phase.
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+IMAGE="ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25"
+BINARY_NAME="red-amber-graal-pi4j-native"
 
 # Check JAVA_HOME is set and points to GraalVM
 if [ -z "${JAVA_HOME:-}" ]; then
@@ -15,23 +24,42 @@ if [ ! -x "${JAVA_HOME}/bin/native-image" ]; then
     exit 1
 fi
 
-# Check sysroot is mounted (required for aarch64 cross-compilation)
-SYSROOT="$HOME/mnt/pios12_root"
-if [ ! -d "$SYSROOT/usr/include" ]; then
-    echo "ERROR: sysroot not mounted at $SYSROOT"
-    echo "  systemctl --user start home-darranl-mnt-pios12_root.mount"
-    exit 1
+# BUILD PHASE — runs inside 'podman unshare' for rootless image mount access
+if [ "${_BUILD_PHASE:-}" = "1" ]; then
+    echo "==> Mounting container image as sysroot..."
+    SYSROOT="$("$PROJECT_ROOT/scripts/setup/mount-image-sysroot.sh")"
+    echo "    Sysroot: $SYSROOT"
+
+    cleanup() {
+        echo "==> Unmounting container image sysroot..."
+        "$PROJECT_ROOT/scripts/setup/unmount-image-sysroot.sh" || true
+    }
+    trap cleanup EXIT
+
+    export SYSROOT
+    export SYSROOT_GRAALVM_HOME=/opt/graalvm
+    "$PROJECT_ROOT/scripts/setup/setup-aarch64-libs.sh"
+
+    echo "==> Building native aarch64 binary..."
+    mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests -Dnative "-Dsysroot=$SYSROOT" \
+        "-Dmaven.repo.local=${MAVEN_LOCAL_REPO}"
+    exit 0
 fi
 
-echo "==> Building native aarch64 binary..."
-mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests -Dnative
+# OUTER PHASE — enter podman unshare for the build, then deploy
+# Capture HOME-relative paths before unshare remaps $HOME to /root
+export MAVEN_LOCAL_REPO="${HOME}/.m2/repository"
 
-BINARY="$PROJECT_ROOT/target/red-amber-graal-pi4j-native"
+echo "==> Entering podman unshare for sysroot mount..."
+_BUILD_PHASE=1 podman unshare -- "$0"
+
+# Deploy phase runs outside unshare — scp does not need the sysroot
+BINARY="$PROJECT_ROOT/target/$BINARY_NAME"
 
 echo "==> Creating ~/.local/bin on BlackRaspberry..."
 ssh blackraspberry "mkdir -p ~/.local/bin"
 
 echo "==> Deploying native binary..."
-scp "$BINARY" blackraspberry:~/.local/bin/red-amber-graal-pi4j-native
+scp "$BINARY" "blackraspberry:~/.local/bin/$BINARY_NAME"
 
 echo "==> Done."
