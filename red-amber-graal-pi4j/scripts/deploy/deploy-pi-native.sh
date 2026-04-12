@@ -42,13 +42,17 @@ if [ "${_BUILD_PHASE:-}" = "1" ]; then
 
     echo "==> Building native aarch64 binary..."
     mvn -f "$PROJECT_ROOT/pom.xml" package -DskipTests -Dnative "-Dsysroot=$SYSROOT" \
-        "-Dmaven.repo.local=${MAVEN_LOCAL_REPO}"
+        "-Dmaven.repo.local=${MAVEN_LOCAL_REPO}" \
+        --settings "${MAVEN_SETTINGS}"
     exit 0
 fi
 
 # OUTER PHASE — enter podman unshare for the build, then deploy
-# Capture HOME-relative paths before unshare remaps $HOME to /root
+# Capture HOME-relative paths before unshare remaps $HOME to /root.
+# Both the local repo path and settings.xml path must be resolved here;
+# inside podman unshare user.home becomes /root and neither path is accessible.
 export MAVEN_LOCAL_REPO="${HOME}/.m2/repository"
+export MAVEN_SETTINGS="${HOME}/.m2/settings.xml"
 
 echo "==> Entering podman unshare for sysroot mount..."
 _BUILD_PHASE=1 podman unshare -- "$0"

@@ -109,7 +109,7 @@ Adding new jextract FFM bindings does **not** require regenerating the cache.
 ## FFM downcall registration — when to update
 
 GraalVM reachability metadata for Pi4J FFM downcalls is provided by the external artifact
-`dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-1` (project `pi4j-graalvm-metadata/`).
+`dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-3` (project `pi4j-graalvm-metadata/`).
 This project carries no local `reachability-metadata.json`.
 
 When to update the metadata artifact version:

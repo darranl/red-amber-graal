@@ -20,6 +20,13 @@
     <slf4j.version>2.0.16</slf4j.version>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/lofthouse-dev/pi4j-graalvm-metadata</url>
+    </repository>
+  </repositories>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -58,7 +65,7 @@
     <dependency>
       <groupId>dev.lofthouse.pi4j</groupId>
       <artifactId>pi4j-ffm-metadata-bookworm-graal25</artifactId>
-      <version>4.0.0-1</version>
+      <version>4.0.0-3</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

@@ -61,18 +61,39 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
 
 ### Local machine (x86_64)
 
-1. **GraalVM CE 25.0.2** installed via sdkman and selected before building:
+1. **GitHub Packages access** — `mvn package` downloads
+   `dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25` from GitHub Packages, which
+   requires authentication even for read access. Add a `<server>` entry to
+   `~/.m2/settings.xml`:
+
+   ```xml
+   <settings>
+     <servers>
+       <server>
+         <id>github</id>
+         <username>YOUR_GITHUB_USERNAME</username>
+         <password>YOUR_GITHUB_PAT</password>
+       </server>
+     </servers>
+   </settings>
+   ```
+
+   The PAT needs the **`read:packages`** scope. Generate one at
+   [github.com/settings/tokens](https://github.com/settings/tokens). If `settings.xml`
+   already exists, add the `<server>` block inside the existing `<servers>` element.
+
+2. **GraalVM CE 25.0.2** installed via sdkman and selected before building:
    ```bash
    sdk install java 25.0.2-graalce
    sdk use java 25.0.2-graalce
    ```
 
-2. **aarch64 cross-compiler** from the system package manager:
+3. **aarch64 cross-compiler** from the system package manager:
    ```bash
    sudo apt install gcc-aarch64-linux-gnu
    ```
 
-3. **Podman** — used to mount the `graalvm-pi-builder` container image as the aarch64
+4. **Podman** — used to mount the `graalvm-pi-builder` container image as the aarch64
    sysroot and to auto-generate the CAP cache during native builds:
    ```bash
    # One-time: install QEMU binfmt support for CAP cache generation
@@ -86,7 +107,7 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
    `make deploy-native` mounts the image automatically as the sysroot — no Pi connectivity
    or SSHFS mount required.
 
-4. **aarch64 static library symlinks** — handled automatically by `make deploy-native`.
+5. **aarch64 static library symlinks** — handled automatically by `make deploy-native`.
    To set up or refresh manually:
    ```bash
    make setup-libs
@@ -232,7 +253,7 @@ Pi4J v4.0.0 ships **no** GraalVM native-image metadata of its own. The FFM reach
 metadata is provided by a separate artifact in this repository:
 
 ```
-dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-1
+dev.lofthouse.pi4j:pi4j-ffm-metadata-bookworm-graal25:4.0.0-3
 ```
 
 This is declared as a dependency in `pom.xml`. native-image discovers the metadata
