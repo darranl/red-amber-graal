@@ -3,7 +3,7 @@
 GraalVM native image build of the traffic light controller for BlackRaspberry
 (Raspberry Pi 4B, aarch64). This project cross-compiles from an x86_64 Linux
 development machine to aarch64 using GraalVM CE 25, the `aarch64-linux-gnu-gcc`
-toolchain, and an SSHFS mount of the Pi's root filesystem as the sysroot.
+toolchain, and the `graalvm-pi-builder` container image as the aarch64 sysroot.
 
 The project produces two deployable artefacts that coexist on the Pi:
 
@@ -20,15 +20,15 @@ Run `make help` to list all available targets:
 Usage: make <target>
 
 Setup (one-time):
-  setup-libs           Symlink aarch64 static libs from Pi into local GraalVM CE
-  gen-cap-cache        Generate CAP cache on Pi and fetch result back
+  setup-libs           Symlink aarch64 static libs from container image into local GraalVM CE
+  gen-cap-cache        Generate CAP cache via Podman (auto-runs during native build if absent)
   gen-ffm-bindings     Generate FFM Java bindings for libgpiod via jextract
 
 Deploy:
   deploy               Build JVM JAR and deploy to Pi
-  deploy-native        Build aarch64 native binary and deploy to Pi
+  deploy-native        Build aarch64 native binary (Maven cross-compile) and deploy to Pi
   deploy-native-pi     Build aarch64 native binary on BlackRaspberry and install in place
-  deploy-native-podman Build aarch64 native binary (Podman/QEMU arm64) and deploy to Pi
+  deploy-native-podman NOT VIABLE: Podman/QEMU arm64 build (hangs) — use deploy-native instead
 
 Run:
   run                  Run JVM version on Pi via SSH
@@ -67,28 +67,22 @@ and is the only practical option for the Pi Zero 2 W (512 MB RAM).
    sudo apt install gcc-aarch64-linux-gnu
    ```
 
-3. **Sysroot** — SSHFS mount of BlackRaspberry's root filesystem:
-   ```bash
-   systemctl --user start home-darranl-mnt-pios12_root.mount
-   ```
-   See the top-level `CLAUDE.md` for mount unit details.
-
-4. **aarch64 static library symlinks** — one-time setup, run once per machine:
+3. **aarch64 static library symlinks** — one-time setup, run once per machine:
    ```bash
    make setup-libs
    ```
-   This creates two symlinks inside the local GraalVM CE installation that point
-   at the aarch64 static libraries from the Pi's GraalVM CE installation (via the
-   sysroot mount). Requires the sysroot to be mounted and GraalVM CE 25.0.2 to be
-   installed on BlackRaspberry.
+   This mounts the `graalvm-pi-builder` container image and creates two symlinks inside
+   the local GraalVM CE installation pointing at the aarch64 static libraries in the image.
+   Requires Podman and the container image (`podman pull ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25`).
+   No Pi connectivity needed.
 
-5. **CAP cache** — must exist at `cap-cache/` before the native build. The cache is committed
-   to version control; regenerate only if the GraalVM CE version changes (see [CAP cache](#cap-cache)):
+4. **CAP cache** — auto-generated during `mvn package -Dnative` when absent. To pre-warm:
    ```bash
    make gen-cap-cache   # requires Podman + QEMU (make setup-podman)
    ```
+   See [CAP cache](#cap-cache) for details on when to regenerate.
 
-6. **jextract** — required to regenerate the FFM bindings. Install via sdkman:
+5. **jextract** — required to regenerate the FFM bindings. Install via sdkman:
    ```bash
    sdk install jextract
    ```
@@ -119,7 +113,14 @@ Ensure all prerequisites above are satisfied, then:
 
 ```bash
 sdk use java 25.0.2-graalce
-mvn package -DskipTests -Dnative
+make deploy-native
+```
+
+Or directly via Maven (the deploy script sets `-Dsysroot` automatically via container mount):
+
+```bash
+sdk use java 25.0.2-graalce
+mvn package -DskipTests -Dnative -Dsysroot=/path/to/sysroot
 ```
 
 Output: `target/red-amber-graal-libgpio-native` — a self-contained aarch64 ELF
@@ -143,13 +144,12 @@ Zero 2 W (512 MB RAM).
 
 ```bash
 make deploy                # build JAR + scp JAR and wrapper script to Pi
-make deploy-native         # build native binary (Maven cross-compile) + scp to Pi
+make deploy-native         # build native binary (Maven cross-compile via container sysroot) + scp to Pi
 make deploy-native-pi      # build native binary on BlackRaspberry directly
-make deploy-native-podman  # build native binary (Podman/QEMU arm64) + scp to Pi
 ```
 
-Both scripts check their prerequisites and print clear errors if anything is
-missing (sysroot not mounted, native-image not found, etc.).
+`make deploy-native-podman` is preserved for debugging but **not viable** — it hung overnight
+during testing and has impractical build time. Use `make deploy-native` instead.
 
 ## Running on the Pi
 
@@ -330,17 +330,19 @@ the initial cross-compilation setup:
 | `-H:CAPCacheDir=...` | Required by native-image when cross-compiling; see [CAP cache](#cap-cache) |
 | `-H:CLibraryPath=.../usr/lib/aarch64-linux-gnu` | The cross-compiler's sysroot support does not automatically add the Debian multiarch library path, so `-lz` and other system libraries are not found without this |
 
-The two symlinks created by `make setup-libs` slot the Pi's aarch64
-static libraries into the expected locations inside the local GraalVM CE
+The two symlinks created by `make setup-libs` slot the aarch64 static libraries
+from the container image into the expected locations inside the local GraalVM CE
 installation:
 
 ```
 ~/.sdkman/candidates/java/25.0.2-graalce/lib/static/linux-aarch64/
-  → $SYSROOT/home/darranl/.sdkman/candidates/java/25.0.2-graalce/lib/static/linux-aarch64/
+  → $SYSROOT/opt/graalvm/lib/static/linux-aarch64/
 
 ~/.sdkman/candidates/java/25.0.2-graalce/lib/svm/clibraries/linux-aarch64/
-  → $SYSROOT/home/darranl/.sdkman/candidates/java/25.0.2-graalce/lib/svm/clibraries/linux-aarch64/
+  → $SYSROOT/opt/graalvm/lib/svm/clibraries/linux-aarch64/
 ```
+
+where `$SYSROOT` is the container image mount path obtained via `podman image mount`.
 
 native-image derives the JDK static library search path directly from
 `JAVA_HOME` and cannot be redirected via any build argument; the symlinks are

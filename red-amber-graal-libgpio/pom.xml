@@ -111,10 +111,10 @@
                 <buildArg>-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64</buildArg>
                 <buildArg>--target=linux-aarch64</buildArg>
                 <buildArg>--native-compiler-path=/usr/bin/aarch64-linux-gnu-gcc</buildArg>
-                <buildArg>--native-compiler-options=--sysroot=${user.home}/mnt/pios12_root</buildArg>
+                <buildArg>--native-compiler-options=--sysroot=${sysroot}</buildArg>
                 <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
                 <buildArg>-H:CAPCacheDir=${project.build.directory}/cap-cache</buildArg>
-                <buildArg>-H:CLibraryPath=${user.home}/mnt/pios12_root/usr/lib/aarch64-linux-gnu</buildArg>
+                <buildArg>-H:CLibraryPath=${sysroot}/usr/lib/aarch64-linux-gnu</buildArg>
               </buildArgs>
             </configuration>
           </plugin>

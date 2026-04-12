@@ -14,13 +14,19 @@ BlackRaspberry. Supports both JVM and GraalVM native image deployment.
 | Command | Output | Runs on |
 |---|---|---|
 | `mvn package` | JVM JAR in `target/` | Pi via `make run` |
-| `mvn package -Dnative` | aarch64 native binary in `target/` | Pi via `make run-native` |
+| `mvn package -Dnative -Dsysroot=PATH` | aarch64 native binary in `target/` | Pi via `make run-native` |
 | `make deploy-native-pi` | aarch64 native binary built on BlackRaspberry | Pi via `make run-native` |
-| `make deploy-native-podman` | aarch64 native binary via Podman/QEMU arm64 | Pi via `make run-native` |
 
-The Maven cross-compile path (`mvn package -Dnative`) works with the
-`-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64` workaround in `pom.xml`.
-See `notes/graalvm-ffm-cross-compile-bug.md` for root cause and fix details.
+The Maven cross-compile path (`mvn package -Dnative`) is the only viable native build path.
+It requires a `-Dsysroot=` property pointing at an aarch64 filesystem root — use
+`make deploy-native` which mounts the `graalvm-pi-builder` container image automatically.
+
+**Podman/QEMU native build (`make deploy-native-podman`) is NOT viable** — it hung overnight
+during testing and has impractical build time. The scripts are preserved for debugging only.
+CAP cache generation (which also uses Podman briefly) is fine — it exits early and is fast.
+
+The Maven cross-compile path works with the `-J-Djdk.internal.foreign.CABI=LINUX_AARCH_64`
+workaround in `pom.xml`. See `notes/graalvm-ffm-cross-compile-bug.md` for root cause and fix details.
 
 Local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`) are not updated.
 
@@ -30,15 +36,18 @@ Local run scripts (`scripts/run/run-local.sh`, `scripts/run/run-local-native.sh`
 |---|---|
 | `pom.xml` | Native profile contains all cross-compilation flags |
 | `Makefile` | Convenience targets for all operations; run `make help` |
-| `scripts/setup/setup-aarch64-libs.sh` | One-time: symlinks Pi's aarch64 static libs into local GraalVM CE |
+| `scripts/setup/mount-image-sysroot.sh` | Mount graalvm-pi-builder image as aarch64 sysroot; prints mount path (must be inside `podman unshare`) |
+| `scripts/setup/unmount-image-sysroot.sh` | Unmount the container image sysroot (must be inside `podman unshare`) |
+| `scripts/setup/setup-libs-with-mount.sh` | Wraps mount+setup-aarch64-libs+unmount inside `podman unshare`; called by `make setup-libs` |
+| `scripts/setup/setup-aarch64-libs.sh` | Symlinks aarch64 static libs from sysroot into local GraalVM CE; auto-run by deploy-pi-native.sh |
 | `scripts/setup/setup-podman.sh` | One-time: install QEMU packages on Arch Linux, verify binfmt handler |
 | `scripts/setup/generate-cap-cache.sh` | Generates CAP cache via Podman arm64 container (no Pi required); auto-invoked by native Maven build; uses `ghcr.io/lofthouse-dev/graalvm-pi-builder:bookworm-graal25` |
 | `scripts/setup/generate-ffm-bindings.sh` | Generate FFM bindings from gpiod.h via jextract — see README |
-| `scripts/build/build-native-podman.sh` | Build native binary via arm64 Podman container (workaround for GraalVM cross-compile bug) |
+| `scripts/build/build-native-podman.sh` | NOT VIABLE: Podman/QEMU native build (hangs) — preserved for debugging |
 | `scripts/deploy/deploy-pi.sh` | Build JAR → scp to Pi |
-| `scripts/deploy/deploy-pi-native.sh` | Build native binary via Maven cross-compile → scp to Pi (requires sysroot + GraalVM CE) |
+| `scripts/deploy/deploy-pi-native.sh` | Mount container sysroot → setup-libs → Maven cross-compile → scp to Pi |
 | `scripts/deploy/deploy-pi-native-on-pi.sh` | Build native binary on BlackRaspberry via SSH → installs in place |
-| `scripts/deploy/deploy-pi-native-podman.sh` | Build native binary via Podman/QEMU → scp to Pi |
+| `scripts/deploy/deploy-pi-native-podman.sh` | NOT VIABLE: Podman/QEMU deploy (hangs) — preserved for debugging |
 | `scripts/run/run-on-pi.sh` / `scripts/run/run-on-pi-native.sh` | SSH and run the respective binary |
 | `scripts/pi/red-amber-graal-libgpio` | JVM wrapper deployed to Pi |
 | `src/main/resources/META-INF/native-image/dev.lofthouse/red-amber-graal-libgpio/reachability-metadata.json` | FFM downcall descriptor shapes for GraalVM native-image registration |
@@ -137,17 +146,22 @@ https://www.graalvm.org/jdk25/reference-manual/native-image/native-code-interope
 
 ## aarch64 static library symlinks
 
-`make setup-libs` creates two symlinks inside the local GraalVM CE
-installation pointing at the Pi's GraalVM CE installation via the SSHFS sysroot
-mount. native-image's JDK static lib search path is hardcoded to
+`deploy-pi-native.sh` (and `make setup-libs`) creates two symlinks inside the
+local GraalVM CE installation pointing at the aarch64 GraalVM in the sysroot.
+native-image's JDK static lib search path is hardcoded to
 `$JAVA_HOME/lib/static/{target}/{libc}/` and cannot be redirected via any
 native-image flag. Symlinks are the only mechanism that avoids copying files.
 
-The symlinks depend on:
-- Sysroot being mounted (`~/mnt/pios12_root`)
-- GraalVM CE 25.0.2 installed on BlackRaspberry
+The sysroot is the mounted `graalvm-pi-builder` container image (GraalVM at
+`/opt/graalvm`). `setup-aarch64-libs.sh` reads `SYSROOT` and `SYSROOT_GRAALVM_HOME`
+from the environment — both are set automatically by `deploy-pi-native.sh`.
 
-Re-run `make setup-libs` after upgrading GraalVM on either machine.
+The symlinks are refreshed on every `make deploy-native` run so that image
+updates are picked up automatically. The symlinks are dangling when the image
+is not mounted (expected — they are only needed during the build).
+
+Re-run `make setup-libs` or `make deploy-native` after upgrading GraalVM in
+the container image.
 
 ## Native image option names — GraalVM CE 25 reference
 

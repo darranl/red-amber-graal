@@ -7,7 +7,7 @@
 help:
 	@printf "\nUsage: make <target>\n"
 	@printf "\nSetup (one-time):\n"
-	@printf "  %-24s %s\n" "setup-libs"           "Symlink aarch64 static libs from Pi into local GraalVM CE"
+	@printf "  %-24s %s\n" "setup-libs"           "Symlink aarch64 static libs from container image into local GraalVM CE"
 	@printf "  %-24s %s\n" "setup-podman"         "Install QEMU packages for arm64 Podman containers (Arch Linux)"
 	@printf "  %-24s %s\n" "gen-cap-cache"        "Generate CAP cache via Podman (auto-runs during native build if absent)"
 	@printf "  %-24s %s\n" "gen-ffm-bindings"     "Generate FFM Java bindings for libgpiod via jextract"
@@ -25,7 +25,7 @@ help:
 	@printf "\n"
 
 setup-libs:
-	./scripts/setup/setup-aarch64-libs.sh
+	./scripts/setup/setup-libs-with-mount.sh
 
 setup-podman:
 	./scripts/setup/setup-podman.sh
@@ -45,7 +45,12 @@ deploy-native:
 deploy-native-pi:
 	./scripts/deploy/deploy-pi-native-on-pi.sh
 
+# NOT VIABLE: Podman/QEMU native build hangs and has impractical build time.
+# Preserved for debugging purposes only. Use 'make deploy-native' instead.
 deploy-native-podman:
+	@echo "WARNING: Podman/QEMU native build is not viable (hangs, impractical build time)."
+	@echo "         Use 'make deploy-native' for the recommended cross-compile path."
+	@echo "         Proceeding anyway for debugging purposes..."
 	./scripts/deploy/deploy-pi-native-podman.sh
 
 run:
